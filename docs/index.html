@@ -1,0 +1,2339 @@
+<meta charset="utf-8">
+<title>DANIEL GROUP — расчёт мебели и КП</title>
+<style>
+  :root {
+    --bg: #f6f5f3;
+    --surface: #ffffff;
+    --surface-2: #faf9f7;
+    --text: #1c1c1a;
+    --text-dim: #6b6a66;
+    --border: #e0ddd7;
+    --accent: #8a6a3d;
+    --accent-soft: #f3ece1;
+    --warn-bg: #fdf6e8;
+    --warn-border: #e6d3a3;
+    --ok: #3f7d54;
+    --radius: 10px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17171a;
+      --surface: #202024;
+      --surface-2: #26262b;
+      --text: #ececea;
+      --text-dim: #9b9a96;
+      --border: #35353b;
+      --accent: #c9a06a;
+      --accent-soft: #2e2820;
+      --warn-bg: #2c2618;
+      --warn-border: #4d4128;
+      --ok: #6fb387;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17171a;
+    --surface: #202024;
+    --surface-2: #26262b;
+    --text: #ececea;
+    --text-dim: #9b9a96;
+    --border: #35353b;
+    --accent: #c9a06a;
+    --accent-soft: #2e2820;
+    --warn-bg: #2c2618;
+    --warn-border: #4d4128;
+    --ok: #6fb387;
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f5f3;
+    --surface: #ffffff;
+    --surface-2: #faf9f7;
+    --text: #1c1c1a;
+    --text-dim: #6b6a66;
+    --border: #e0ddd7;
+    --accent: #8a6a3d;
+    --accent-soft: #f3ece1;
+    --warn-bg: #fdf6e8;
+    --warn-border: #e6d3a3;
+    --ok: #3f7d54;
+  }
+
+  * { box-sizing: border-box; }
+  /* Явные display:flex/grid на .field/.grid/.checkline иначе перебивают
+     браузерный [hidden] { display:none } — адаптивные поля опроса
+     оставались бы видимыми несмотря на hidden=true в JS. */
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 18px 80px; }
+
+  header.app {
+    display: flex; align-items: center; gap: 14px;
+    padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  header.app img {
+    height: 42px; width: auto; background: #fff; border-radius: 6px;
+    padding: 3px 7px;
+  }
+  header.app .brand { font-weight: 700; letter-spacing: .06em; font-size: 17px; }
+  header.app .sub { color: var(--text-dim); font-size: 13px; }
+
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 26px; }
+  .step-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 13px; border-radius: 100px; font-size: 13px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .step-chip .n {
+    width: 20px; height: 20px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: 11px; font-weight: 700;
+    background: var(--border); color: var(--text-dim);
+  }
+  .step-chip.active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .step-chip.active .n { background: var(--accent); color: #fff; }
+  .step-chip.done .n { background: var(--ok); color: #fff; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px; margin-bottom: 18px;
+  }
+  h2.sec { margin: 0 0 4px; font-size: 19px; }
+  p.hint { margin: 0 0 18px; color: var(--text-dim); font-size: 13.5px; }
+  h3.blk {
+    margin: 24px 0 12px; font-size: 14px; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--text-dim);
+    border-bottom: 1px solid var(--border); padding-bottom: 6px;
+  }
+  h3.blk:first-of-type { margin-top: 0; }
+  h4.sub-h {
+    margin: 18px 0 8px; font-size: 12.5px; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--text-dim);
+  }
+  h4.sub-h:first-of-type { margin-top: 4px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .field .req { color: var(--accent); }
+  input, select, textarea {
+    font: inherit; font-size: 14px; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 7px; padding: 9px 11px; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { min-height: 74px; resize: vertical; }
+  .checkline { display: flex; align-items: center; gap: 9px; padding: 7px 0; font-size: 14px; }
+  .checkline input { width: auto; }
+
+  button {
+    font: inherit; font-weight: 600; font-size: 14px; cursor: pointer;
+    border-radius: 8px; padding: 11px 20px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+  .actions .spacer { flex: 1 1 auto; }
+
+  .drop {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 30px 20px; text-align: center; cursor: pointer; background: var(--surface-2);
+  }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop .big { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .drop .small { color: var(--text-dim); font-size: 13px; }
+  #photoPreview { max-width: 100%; max-height: 260px; border-radius: 8px; margin-top: 14px; display: none; }
+
+  .module-card {
+    border: 1px solid var(--border); border-radius: 9px;
+    padding: 16px; margin-bottom: 12px; background: var(--surface-2);
+  }
+  .module-card .mhead {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; gap: 10px;
+  }
+  .module-card .mtitle { font-weight: 700; font-size: 14px; }
+  .btn-sm { padding: 6px 12px; font-size: 12.5px; }
+
+  .module-layout { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap-reverse; }
+  .module-fields { flex: 1 1 380px; min-width: 240px; }
+  .module-schematic {
+    flex: 0 0 190px; display: flex; flex-direction: column; align-items: center;
+    gap: 6px; padding-top: 2px;
+  }
+  .module-schematic svg {
+    width: 100%; max-width: 190px; height: auto;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .module-schematic .schem-caption { font-size: 11.5px; color: var(--text-dim); text-align: center; }
+  .module-schematic .schem-legend { font-size: 10.5px; color: var(--text-dim); text-align: center; line-height: 1.5; }
+
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 0; border-top: 1px solid var(--border); gap: 10px;
+  }
+  .toggle-row label { font-weight: 600; font-size: 13.5px; }
+  .sub-panel {
+    padding: 10px 0 6px 14px; margin: 0 0 10px;
+    border-left: 2px solid var(--accent-soft);
+  }
+  .sub-panel .mhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+
+  .tablewrap { overflow-x: auto; margin-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 620px; }
+  th, td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; vertical-align: top; }
+  th { background: var(--surface-2); font-weight: 600; font-size: 12px; white-space: nowrap; }
+  td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tbody tr:nth-child(even):not(.total) td { background: var(--surface-2); }
+  tr.total td { font-weight: 700; background: var(--accent-soft); }
+  tbody tr:hover:not(.total) td { background: var(--warn-bg); }
+  td input { min-width: 140px; }
+  td.num input { text-align: right; min-width: 90px; }
+  .flag { font-size: 11.5px; color: var(--accent); font-weight: 600; }
+  .dash { color: var(--text-dim); }
+
+  .module-detail { margin-bottom: 30px; padding-bottom: 14px; border-bottom: 2px solid var(--border); }
+  .module-detail:last-of-type { border-bottom: none; }
+  .mod-title { font-size: 18px; margin: 0 0 6px; }
+  h4.blk-big {
+    font-size: 16px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .04em; margin: 18px 0 8px; color: var(--text);
+  }
+  h4.blk-big:first-of-type { margin-top: 6px; }
+  .module-total { text-align: right; font-weight: 700; font-size: 14.5px; margin-top: 4px; }
+
+  .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 16px; }
+  .tile { border: 1px solid var(--border); border-radius: 9px; padding: 14px 16px; background: var(--surface-2); }
+  .tile .lbl { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; }
+  .tile .val { font-size: 21px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tile.hl { border-color: var(--accent); background: var(--accent-soft); }
+
+  .decor-hint { font-size: 12px; color: var(--text-dim); margin-top: 3px; min-height: 16px; }
+  .err { color: #b3261e; font-size: 13px; margin-top: 10px; }
+  @media (prefers-color-scheme: dark) { .err { color: #f2b8b5; } }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, .45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 50;
+  }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; max-width: 420px; width: 100%;
+  }
+  .modal-box h3 { margin: 0 0 8px; font-size: 17px; }
+  .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; justify-content: flex-end; }
+
+  /* ---------- КП ---------- */
+  #kpDoc { background: #fff; color: #1c1c1a; border-radius: var(--radius); padding: 34px; border: 1px solid var(--border); }
+  #kpDoc .kp-logo { height: 40px; margin-bottom: 20px; }
+  #kpDoc h1 { font-size: 23px; margin: 0 0 4px; }
+  #kpDoc .kp-meta { color: #666; font-size: 13px; margin-bottom: 20px; }
+  #kpDoc .kp-photo { width: 100%; max-height: 330px; object-fit: cover; border-radius: 5px; margin-bottom: 20px; }
+  #kpDoc h2 { font-size: 15px; margin: 22px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+  #kpDoc table { min-width: 0; }
+  #kpDoc th, #kpDoc td { border-color: #ddd; }
+  #kpDoc th { background: #f5f5f3; }
+  #kpDoc .kp-note { margin-top: 18px; font-size: 12.5px; color: #444; white-space: pre-wrap; }
+  #kpDoc .price-big { font-size: 16px; font-weight: 700; }
+
+  @media print {
+    body { background: #fff; }
+    .wrap { max-width: none; padding: 0; }
+    header.app, .steps, .no-print { display: none !important; }
+    #kpDoc { border: none; border-radius: 0; padding: 0; }
+    @page { size: A4; margin: 16mm; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 16px 12px 60px; }
+    .card { padding: 16px; }
+    #kpDoc { padding: 20px; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="app">
+    <img id="brandLogo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAC0CAYAAABIf1IMAAAZCUlEQVR4nO3dC7xt5bjH8f9G7FApnlLY2ynlksjthDiJIiEi5ZLtUiqq45I6xpFLSaNCkijRPacLlUouiUoU4rgVclQ2SfUWSbE5dvt8nn2e0edtNOdc8/Kutddc8/f9fNZnrTnWXGOMOeZc833m+z7v885bsGDBMgEAAKCYe5XbFQAAANx9msuwePHieVwSAACA4S1cuHD5yCA9WAAAAIURYAEAABRGgAUAAFAYARYAAEBhBFgAAACFEWABAAAURoAFAABQGAEWAABAYQRYAAAAhRFgAQAAFEaABQAAUBgBFgAAQGEEWAAAAIURYAEAABRGgAUAAFAYARYAAEBhBFgAAACFEWABAAAURoAFAABQGAEWAABAYQRYAAAAhRFgAQAAFEaABQAAUBgBFgAAQGEEWAAAAIURYAEAABRGgAUAAFAYARYAAEBhBFgAAACFEWABAAAURoAFAABQGAEWAABAYQRYAAAAhRFgAQAAFEaABQAAUBgBFgAAQGEEWAAAAIURYAEAABRGgAUAAFAYARYAAEBhBFgAAACFEWABAAAURoAFAABQGAEWAABAYQRYAAAAhRFgAQAAFEaABQAAUBgBFgAAQGEEWAAAAIURYAEAABRGgAUAAFAYARYAAEBhBFgAAACFEWABAAAURoAFAABQGAEWAABAYQRYAAAAhRFgAQAAFEaABQAAUBgBFgAAQGH30RgxsxskrdXHXe+U9A9Jf5F0o6T/kfQNSaenlFLB89lc0jdbm5+eUvrekPu7XdIDsk3PTyl9fYj9zJf0t2zTMSmlnbvcdwtJ+TE+lFLat8t9r5C0ocpZnFJ6ZIfjPEjSn7JNX0spbaVZxMxWluTP/wskbSRpfUmrSVo5zt1fZ9dJujCu73+nlJYNsP9fS1pvwNP6X0lLJN0s6TeSfijpnJTSJYM/wnucz8MlbRWP1x/rmpIeEse7RdLPJfnr/oyU0pVD7D9/vH9OKT1oyPP019O12SY/n+1GfD9pv6f43/1M0gWSzk0p+fUGgPENsAbsmZsfXybp8ZK2lXSYmZ0u6e2FAq03dti2azQ0JXzGzB6fUvLAC7OAmXmDvJekN0vqFgRYfD3Og2RJtQf5Zubfjx8k0BrQSvG1iqR/iQDwXWb2HUmLUkrXDLpDM9tA0gGSPEiZ1+WYfjwPbLaWtJ+Zfde/p5S+qrn7nuJB9Wsk3W5mH/FrlFJauqJPEsDsca8JDCj9TfFKM9tylB2ZmTcqr+jwqx2iB6aEhZIOKbQvjMjM3iDpF5L27hFcdeO9Psd6j6eZeQM9kzaV9G0z86CrL2Y2z8w+4P8rkl7ZJbjq5umSvmJmp5nZGprbHijJr9OpZjZXP7ACGMI4vyH40N+rejyu5pOmN2zPkfSM7Pe+/Vwze8kwQ3BhB0n3j59/IMk/6a8a214n6RMqYzfvdUspXaTZxYeGXlhgH2PBzA6JwKrtdz6E6UOAMTR3q6TVJT0sepCe2xr29dfihWa2aUrpz30e/g5JL+7jfveLYbsnSto+AvTG2pJOkvSsPoeYT4h95LyH5jJJ50u6Oh7v/Oi92jTOsfmfUPz9xmbmQ92LNb7vJ4oA877xP75B9GDm13e7eB84eAbOFcAYGOcAa8kgQYc3aNForJc1Rv4J+8kpJc9XGWV40PO7fp29Qe9aMMDyN/ZjzGyjlNJfNXssnYVB37Qws/d0CK48oHrPFMNgHzOz1WJIcZ94zSny2D4pacc+T+GfA17rz5lZJen9kt6bbd/UzF6cUvrSFH9/fIfg6hTvqUkp/arL3xwePbf+ON8VQ4eKYMQDyqemlP6oufN+4gH30ZK8V7PxPjM7LqV00/ScIoBxMjFDhCklz0P510jGbXhPw+FD5qU8M9vkScRfyG5vaGZT9hQMYN3I48EMM7PNJO3f2vwpfy31k2PkvVQppfdFcrgnSDdea2ablD/ju467NI7rw5K5Rb3+zszeFr2zee/Zq1NKr+kRXDXHvDWl9J/Rm5UHGT40ebLmkJSSTyjwiSOXZ5vv3yEwBTChJibAcvEJeptoNBovGaKhy3uv/hozxc5rNaC7jXi6nvvy9+z2HoWDNkzBzO4dAXj+f/LplNLugyY0p5Qu7tAL9o4ZeBI8QT2XfzC4GzN7RCvnz2fObZ9SOnWQA6aULo+h0XxyxgvNrFPO4tiK10A7R7KfoVwAE2CiAiyXUrq6Q2/QngM2unkvwFd86C6l5PlEZ2bbtzOzB49wqr+O5Nn8uTo2ygNgZnhezROy257g7j08wzq61YO6jZnlOUvFpZSujTIKjXXMrNv//V6RZ9SoU0pfHvK4/gHhna3NH9Tcc2nr9oIVdB4AZpmJC7DCEa06Ud6LlTcsvfi0+3Wy2/nQoCcRN+7Xys8Yxocjcbax/hxtpGar3Vu3q5RS3qs4kCjPcFTkbx0k6UVRW2kmcy291+UeZSIif8oTtxvey/vREY97TCugfKyZec/WXPKH6OlrjPKhCsAcMpEBVszeyhNaV438rH68Kfv5NklnZ7cvjFlljV1GPM+lMRyZN8LvMDOfBo9pZGYPbc24+60X7Rx1vymlT6SUnpJS8mDtwpTSPzWNzMzz9zzRvnF9lzpcPrsx7037r5RSXux1YCmlOyOgzHUs+jnmZRry99GRrhmAuWMiA6zwrdbtp071B1HTx3O4Gp9PKf2t1aDkvVgbRLX3oaWUrmjl0TRDhc2MNEyPrVq1n86axgKh06k9TNdtptxmfd5vUGd16AGeS9ofdnzVCACY6ACr/Ub4qD7+5rWtHBUv+9DW3jZqsrsiZ+zH2e3HtvKzUN5TWre/PW4X2cx26TDMeWSXu/vMv5xXYx9ZSsmXC8rLoKxrZt7rM1e8vXXbS7YAwFjXwRrV71u3vTDkILMHr+nU6PpUdjO7LCtsuq2ZrTlKbRwfRjIzP/bl2XO2t5n5Omt5jtZMeoCZjdKj88OU0pS9hiuQB7G5PJdo1onEdS9o+vAIDnfu0CvlNZq6BU55XuHSYZbV6cHLOzRrTs6LXMIfaYx5pXtfDiiWB2rc3urBBjDBJjnAyks1uJ6fqs3Mq2M/Kdt0Yo8hoxOyAGulyNvypOahpZR+HGvZNYUjfTbjcWbm+TwzkSg9adrL2dwwQkPc6PTzshha7mW1EYNZRRmRdm+WuiRne25hSe11P0stJTVjYvbwKlG93f+3d+qQVnBQSimfsQlggk1ygOWFAge5Fnnv1bIpPql63aDDYhkR92YzO7hADs8BsWi1L16t+L6vV5Aecb+4p3x5m76X9TEzf4688vsgM+28t2m6eNK1n9PHu9XuiqVxmteqYrmfkvIZu52u7WywcMQg1ovOUgwYwF0mOcBqf4ru+qndzFaK/KvGJb2GUHyWopmdnVXEXjeSe33NuqF5T1UMFfowj3+idpWZnek9XBqvtQjzoqyzUbscg9cfm01LFfXiw5k/lOQ1rM7pY4mlZdP8vpDPYtQYXcd+3BnLHu3VR08kgAlCgNXfp/aXxCK6jRP7uLbHt5Yc2XXUAMt5zpWZeX2sd2fPoQ8VPm26p/xP2FqE7en2PoN0RQ3/dFrseV4EfetH4dsnt17Lh/ebn+e1vcxsSdaL5Y+1pDX6+F8rFZzMm6b9toPvn0RZlqOGXMsUwBw3yQHWWlPkiXQbHnSfNbPPDng8L2a6Tkrpeo3OZxC+TNJj4vbG3pNFEdLis0zzmXUb9DkF34f8Lpgi2DhjwHPpudizmR0es9k+HD2bvhzOpT6LMKXkgX4//LFtlE1gWKPg4sztGbqdrmOeR9gsFD2MdmX8fgvD3pgt1t4tpeC2+PJaYu0UAwC4m0kOsNrrD3p17W4FJ70mUolrvVOJSuzR4/CmmMXYlNrY18zOirpZGJ33ULTrHZ3X59I0/qUer6eiIrfvY2b29xiuaoKUY8zMl3E6vY/d/CgLsNyzW0V0h2JmD4vE8MZvUkqdhofzYcP5PityyCG3Bw45HLlkjvfIAphhk1wHq10g0EsgdLKoYCC6c4914AaSUrosEukb942hwiY3C6P52rgt4ptS+lSrzpW/1k7ymaZ9JmnnRsmv67Wf83v0IOXnPeySM2v32C8AzJiJDLDMbP0YVsuXQfHFlTt5Q2s21JaSNh/g6+ethWDzujmj2rc13OLTxvcuuP+JlVL6Reu529jMfOhtHCq3+0LLeeB9Sh/FPc+LOk6NRWbWLlUxTImKdiHOfEH03OLWbf8fHcbjWrfJjwKwQkzqEOEerWTYjjWtYs2/vODkuSmlXvk192Bmx7QWzfVk9y+pAF+mx8x82PHi7PF8oEQyPZY7vLWW3qEeZM3m2WIppSVm5r2u38v+vz1YObTX2pgppdvM7ISsVpYn0O8v6S0jnM7rJW2Y3b6qRw9Wexbs8jyyIY757Cn2CwAzYuJ6sMzMP+G+OdvkM++O6zO5/eQhDun1svKE2K3NzHuyikgpXSLpiGyTr1HoQR1Gd0KrZ3OTSCSf1VJKnk94SIfh6X+b4k8PbPVi7WZmrxnh/yx/Xbr9etSCa+c/7TboepuR37ZFtumWDrl0ADAjJirAMjOvx3NafDpvHNmpppWZrdwqs3BzhzyVKaWUUqvH6l7TUFiyaiVW5xXnMUJvUPQ45j1W7zSzI6I22kDMbOEMBr/7R49Rw3s4j+4VtMQM12algMbx0UvaNzPbJAKmvKDoBSmlU3oc2wPZvKzEevEYBnFEq1f+1G7FVQFguk1MgGVmz4s38KYKuvtdj0WTX94qkHj6CFOz2z1kO5lZseHZlJLXSfJGcNRK8bjntf2mF5FsbfZhtCvMbId+Ai0ze5KZHR0BT8kcvJ4zTSM4zF8Tj56qynxK6bBYiaCxUpQlOdXMvGBuV2a2qpkdGMGVtfKr8kK93XjF+dw+Znas73eK465lZj5T8hXZ5js69OIBwIwZ5xwsn8r9nC6/85l0K0etK8+hekErsGregLfpUeunxPBgwytq/yGb4bROFC89S4WklC40s0/70Ipmxr17XP9B/LaPhYXXGPJYd6SUus0O7ZsHHZHv/ZGsgv4GEYjcbGbes3l5JFR7WYDV47W3cbz2fAHmTr4YCwZPi5TSxR6gRPDdeLeZnZZSyhPh2xbFh6/ts23em/sKM/tO5PhdG0Nwq8brefOYANJOpvf7bdXPYucppbPNzIfUX9f6P/RA9szIK7su/ndXiwWkPVfrRZHM3/Cg8i0pJZ+8AgArxDgHWGtFJeVheLDz0m7Ly8RQznOzTVdHWYSh+DBFNBz7ZJt3KxlghX2ih6RYjlcP80e4/rmDs6r03TxtyGNd2SGwHiXI+kkkvXtw1fAK/zvGV79+FUurFJnsMIW9o8TEWlmP1GfM7FndkvW9p9bMXh21sXyYbqXs/WKz+OrHOZ7v2E9wldk5gqUdWsVD+73GXrB095RSr7VCAWDaTcwQYVgSM8OeMEXPxutbsww/V+DY3pOQ23KqIZdBRQHHPIEfZa/vhVGM862t/KZ+eK/K16Pn8jEzFFz5Of+pQ6mEZ0w1O9CDr5TSQf6/4sPjAy45c1n0Dr90wOBq+XqbKaVXRXmUQXugfDbt01NKg66yAADFjXMPVi93xjDCXyL/44p48/UyC10Xdc5q9+S1r0YdHlwupXSVmfm086aW0ryYNj9V782gxzk/SkMMlJiMvq+v95AcaWZHxWSCraP+mM+asxgi82FCn9zgwcVPIifpopTSCil6mVLy/KnXtfK/al+QPKV03RR/+8sYols7cpy8DMITo0dslagNd3P0FnpgdXaJ1QRSSieY2cmxSPpWca3Xi0Xa58c1/mMEuj506KsYdFyNAQBWhHkLFixYngS7ePHi9iKpAAAAGMDChQuXTeIQIQAAwLQjwAIAACiMAAsAAKAwAiwAAIDCCLAAAAAKI8ACAAAojAALAACgMAIsAACAwgiwAAAACiPAAgAAKIwACwAAoDACLAAAgMIIsAAAAAojwAIAACiMAAsAAKAwAiwAAIDCCLAAAAAKI8ACAAAojAALAACgMAIsAACAwgiwAAAACiPAAgAAKIwACwAAoDACLAAAgMIIsAAAAAojwAIAACiMAAsAAKAwAiwAAIDCCLAAAAAKI8ACAAAojAALAACgMAIsAACAwgiwAAAACiPAAgAAKIwACwAAoDACLAAAgMIIsAAAAAojwAIAACiMAAsAAKAwAiwAAIBJDLCqqlpSVdXbNSZW1PlWVXVrVVXvnonzr6rq1KqqLtIcM26vNQDA7DQWARYAAMA4IcACAAAo7D4aQ1VVrSTJh3HeJOmRkn4j6dC6rj+T3ed+kg6W9GpJ95b0DUl/kLRFXdeP73c/HY59q6SDJD1P0rMk3STp8LquP9rjb+ZL+oCkHSQ9TNKfJJ0p6Z11Xf8t7uPB7rsk7SLp4ZKuk3ScpLqu6zurqprn95f0FkmPkHS1pAPruj65dbiFVVV9QdJzIoA+NY6zZITHPD+7lv7zaZIe2LrPlOdXVdXtkvw4L5K0pj/Wuq5Pn/oZv8f53GM/kj7fx/Fn+3On1rm+Jx6jP5f+mD8Zz6d/f6ak6yXtXdf1Wf0+BwCAmTGuPVifjQbtbZIe6o2IN5RVVe2V3ccb4JdLepmkx0q6Je4/6H46OUDSJdHgvkPS/lP8zZGSXixpa0mrSnqlpO2jMWx4I7+PpH+PoMEDoLdKanKqDoyG/j8krRE/H1NV1aLWsbyR/7oHWpK2lfRGb4RHfMweLGwTjf16ku6Mn3P9nt9uEaxsKumbGl57P/0efzY/d22+35MkPUTSYfF3F3pAHOf/VUknVlW1+ojHAQBMeg9WVVUbSPIG4w11XZ8fm0+qqmojSe+vqurICBx2lPSquq4vi7/bU9LzB9lPXdd/7XIal9R1vX/8fGZVVZv8/y6rw+q6Xto631XjXBbVdf2L2Pytqqo8KNhC0oeigdwzekW+3NwnGlHfh0nyIGD/uq7PiN+fXlXVv8Xfn1TX9bLY/sW6rj8dP19cVZU3wptL+uAwj7mqqnX9Osa1vDy2efCwZXafQc/vRxrdXfsZ8Piz+blrO6+u61NiP0f5/SWd0RzHz1nS7pI2rKrqqhGOAwAobBx7sJ4d37/W2v4VSatIerKkzST5cMkFzS+j8bxgwP10c27rtje4D46esrup6/q2uq59WO6nHphUVfWJqqouiZ41H35ym8QwpvdOdOK9NCt1ONeLYkjKg6DGT1v3uVHSg0Z4zH7sJmjIr+VFQ57fNSrjmiGPP5ufu7Yrs59vi+9NoKcYNlQ8v6McBwAw6T1YkprhkNTa7vk0btUYUrkz8mVyacD9dHND6/bNrX3eTVVVh8aQ3A8kXSrpI9Ez4nkyigZeMYzZSfP771dV1en3a0a+jft7j0B6mMe8epdz+2PWaA9yfu3nZFj5fgY5/mx+7to69aD+YxqOAwAobBwDrKZhtVZj6cOCTcN/fQQVq8ftxkMG3E83nt/Sbrw6BS7eQG8WuT671nV9dLZ9p+xuf84aST/3tub369V1PUoP0DCP+Zbsb37f5VoWOb+qqvb1ocxs05XNhIQpDHL8cX3upjJTxwEAzNEA69vxfStJx2fbXyjpDkk/jmGxpTH76sxshpXfXjrAfrrxhveI7PYW0bh6Hkxb08tz19BNVVX3lfQ0Sb+NTd+X9M/Y78867OOyOO8XRNJ1sx/vqvCvteu69nOeyjCP+WJJyyLn6vhs1tymWcBV5PzquvYEdP8a1CDHH9fnbiozdRwAwFwMsOq6vsoTdr1sQFVV3sB/T9JLI9l3vyhHcG1VVSdK+nBVVb+LfB1vZB7TNIJ97qebbauq2iXKFWwV0+L36JJE/N1o+N5WVdX7ogflwOg1Wj48Vdf1TZHE/N6qqn4u6TuS1o8p+ZfWdb1LVVWeuH5AVVXXRd7QM+MxHdJvwznMY67r+rqYOHBgVVVXR16Q9zQ9qgmw6rr+fYnzG9aAxx/L567wNQAATLNxTHJ3PkTjQzbHRP6QT5Hfs65rr3HU2CN6HnwW3S9jCMdrJd0x4H46OTGm63vwtp830nVdH9vpjjH7bFGUNbgpSijcEMd6dFVVzZCV16b6VPQSeULzOZLOjsehKAHg+UAfj6E8r4X0/phZVvratfmx/fF5zarron5Wu7ZSqfMbVr/HH+fnrtQ1AABMs3kLFixY/sl98eLFPoQ2p1VV5Q2fzwzbcYR9LC9W2UcQhlmG5w4AMN0WLly4bCyHCPtRVdVakVdzcHz9M4qOPj9ybgAAAKbNuA4R9lTXtSe5byfpuTGkdWNU/t6mrusm0RsAAGBaTNQQIQAAwEwMEc7JHiwAAIAViQALAACgMAIsAACAwgiwAAAACiPAAgAAKIwACwAAoDACLAAAgMIIsAAAAAojwAIAACiMAAsAAKAwAiwAAIDCCLAAAAAKI8ACAAAojAALAACgMAIsAACAwgiwAAAACiPAAgAAKIwACwAAoDACLAAAgMIIsAAAAAojwAIAACiMAAsAAKAwAiwAAIDCCLAAAAAKI8ACAAAojAALAACgMAIsAACAwgiwAAAACiPAAgAAKGzeggULlpXeKQAAwCSjBwsAAEBl/R9Xl3BFZthiMgAAAABJRU5ErkJggg==" alt="DANIEL GROUP">
+    <div>
+      <div class="brand">DANIEL GROUP</div>
+      <div class="sub">Расчёт корпусной мебели и коммерческое предложение</div>
+    </div>
+  </header>
+
+  <div class="steps no-print">
+    <div class="step-chip active" data-chip="1"><span class="n">1</span> Фото и проект</div>
+    <div class="step-chip" data-chip="2"><span class="n">2</span> Опрос</div>
+    <div class="step-chip" data-chip="3"><span class="n">3</span> Деталировка и цены</div>
+    <div class="step-chip" data-chip="4"><span class="n">4</span> КП</div>
+  </div>
+
+  <!-- ШАГ 1 -->
+  <section class="card" data-step="1">
+    <h2 class="sec">Шаг 1. Фото изделия и данные проекта</h2>
+    <p class="hint">Загрузите фото или визуализацию от дизайнера. Фото не влияет на расчёт, но попадёт в КП. Файл никуда не отправляется — обрабатывается прямо в браузере.</p>
+
+    <div class="drop" id="drop">
+      <div class="big">Перетащите фото сюда или нажмите для выбора</div>
+      <div class="small">JPG, PNG, WebP</div>
+      <input type="file" id="photoInput" accept="image/*" hidden>
+    </div>
+    <img id="photoPreview" alt="Превью изделия">
+
+    <h3 class="blk">Данные проекта</h3>
+    <div class="grid">
+      <div class="field">
+        <label>Клиент / дизайнер <span class="req">*</span></label>
+        <input id="clientName" placeholder="Иванов И.И.">
+      </div>
+      <div class="field">
+        <label>Название проекта <span class="req">*</span></label>
+        <input id="projectTitle" placeholder="Шкаф-купе в детскую">
+      </div>
+      <div class="field">
+        <label>Дата</label>
+        <input id="projectDate" type="date">
+      </div>
+    </div>
+
+    <h3 class="blk">Открыть существующий опрос</h3>
+    <p class="hint">Если раньше сохраняли файл опроса (.json) — загрузите его, все поля и модули заполнятся автоматически.</p>
+    <div class="grid">
+      <div class="field">
+        <label>Файл опроса (.json)</label>
+        <input type="file" id="projectFileInput" accept="application/json,.json">
+      </div>
+    </div>
+    <div class="err" id="loadErr"></div>
+
+    <div class="err" id="err1"></div>
+    <div class="actions">
+      <div class="spacer"></div>
+      <button class="primary" onclick="goStep(2)">Далее — опрос →</button>
+    </div>
+  </section>
+
+  <!-- ШАГ 2 -->
+  <section class="card" data-step="2" hidden>
+    <h2 class="sec">Шаг 2. Опрос по изделию</h2>
+    <p class="hint">Интерфейс опроса пока общий для всех типов изделия — адаптация полей под конкретный тип (кухня/гардеробная/санузел и т.д.) появится следующим шагом. Всё, что вы пропустите, попадёт в раздел «Допущения» — молча ничего не додумывается.</p>
+
+    <h3 class="blk">Тип и общие габариты</h3>
+    <div class="grid">
+      <div class="field">
+        <label>Тип изделия <span class="req">*</span></label>
+        <select id="productType">
+          <option value="kitchen">Кухня</option>
+          <option value="hallway">Прихожая</option>
+          <option value="bedroom">Спальня</option>
+          <option value="tv_zone">ТВ-зона</option>
+          <option value="bathroom">Санузел</option>
+          <option value="kids">Детская</option>
+          <option value="laundry">Прачечная</option>
+          <option value="dressing">Гардеробная</option>
+          <option value="office">Кабинет рабочий</option>
+          <option value="wall_panels">Стеновые панели</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Высота, мм <span class="req">*</span></label>
+        <input id="totalH" type="number" value="2400" min="200" step="10">
+      </div>
+      <div class="field">
+        <label>Ширина, мм <span class="req">*</span></label>
+        <input id="totalW" type="number" value="900" min="100" step="10">
+      </div>
+      <div class="field">
+        <label>Глубина, мм <span class="req">*</span></label>
+        <input id="totalD" type="number" value="600" min="100" step="10">
+      </div>
+    </div>
+    <p class="hint" style="margin:10px 0 0">Высота/Ширина/Глубина подставляются как стартовые значения в каждый новый модуль — дальше редактируются независимо для каждого модуля ниже.</p>
+
+    <h3 class="blk">Материалы</h3>
+    <div class="grid">
+      <div class="field">
+        <label>Декор корпуса (ЛДСП Egger 16мм) <span class="req">*</span></label>
+        <select id="corpusDecor"></select>
+        <div class="decor-hint" id="corpusDecorHint"></div>
+      </div>
+      <div class="field">
+        <label>Тип фасада <span class="req">*</span></label>
+        <select id="facadeType" onchange="onTopFacadeTypeChange()"></select>
+      </div>
+    </div>
+    <div class="grid" id="facadeSubfields" style="margin-top:14px"></div>
+
+    <h3 class="blk">Модули (слева направо)</h3>
+    <p class="hint">Изделие делится на модули и нумеруется слева направо — так же, как в деталировке. Цвет корпуса и тип/декор фасада по умолчанию берутся из материалов выше, но переопределяются на каждом модуле независимо.</p>
+    <div id="modulesBox"></div>
+    <div id="moduleAddRow" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="addModule()">+ Добавить модуль</button>
+      <button class="btn-sm" id="addDeskBtn" hidden onclick="addDeskModule()">+ Стол</button>
+      <button class="btn-sm" id="addBedBtn" hidden onclick="addBedModule()">+ Кровать</button>
+      <button class="btn-sm" id="addMirrorBtn" hidden onclick="addMirrorModule()">+ Зеркало</button>
+    </div>
+
+    <h3 class="blk">Дополнительно (необязательно)</h3>
+    <div class="grid">
+      <div class="field">
+        <label>Технологические риски / примечания</label>
+        <textarea id="risks" placeholder="Неровные стены, обход розетки, ограничение по заносу модулей..."></textarea>
+      </div>
+    </div>
+
+    <div class="err" id="err2"></div>
+    <div class="actions">
+      <button onclick="goStep(1)">← Назад</button>
+      <div class="spacer"></div>
+      <button class="primary" onclick="goToDetailing()">Рассчитать деталировку →</button>
+    </div>
+  </section>
+
+  <!-- ШАГ 3 -->
+  <section class="card" data-step="3" hidden>
+    <h2 class="sec">Шаг 3. Деталировка с ценами</h2>
+    <p class="hint">Построена автоматически по ответам. По каждому модулю — три раздела: корпус, фасады, фурнитура. Ниже — свод по проекту и редактируемая таблица материалов/фурнитуры.</p>
+
+    <div id="detailingBox"></div>
+
+    <h3 class="blk">Свод по модулям</h3>
+    <div class="tablewrap"><table id="tblSum"></table></div>
+
+    <h3 class="blk">Итого по материалам и фурнитуре</h3>
+    <p class="hint">Правьте наименование или цену прямо в таблице (Enter/уход с поля запускает пересчёт) — не нужно менять по каждому модулю отдельно, когда заказчик просит другой материал или фурнитуру.</p>
+    <div class="tablewrap"><table id="tblMaterials"></table></div>
+
+    <div class="totals" id="totalTiles"></div>
+
+    <div class="actions">
+      <button onclick="goStep(2)">← Изменить опрос</button>
+      <button id="csvDownloadBtn" onclick="downloadCSV()">Скачать деталировку CSV</button>
+      <button id="jsonDownloadBtn" onclick="downloadProjectJson()">Сохранить опрос (JSON)</button>
+      <div class="spacer"></div>
+      <button class="primary" onclick="goStep(4)">Подтвердить и сформировать КП →</button>
+    </div>
+    <div class="hint" id="csvDlHint" style="margin-top:10px"></div>
+    <div class="hint" id="jsonDlHint" style="margin-top:4px"></div>
+  </section>
+
+  <!-- ШАГ 4 -->
+  <section class="card no-print" data-step="4" hidden>
+    <h2 class="sec">Шаг 4. Коммерческое предложение</h2>
+    <p class="hint">Выберите, какие варианты стоимости показать клиенту. Коэффициенты ×2.8 и ×3.0 показываются рядом — какой использовать, решаете вы.</p>
+    <div class="grid">
+      <div class="field">
+        <label>Варианты стоимости в КП</label>
+        <select id="kpVariant" onchange="renderKP()">
+          <option value="both">Оба варианта (×2.8 и ×3.0)</option>
+          <option value="low">Только ×2.8</option>
+          <option value="high">Только ×3.0</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Срок изготовления</label>
+        <input id="kpTerm" value="21 рабочий день с момента предоплаты" oninput="renderKP()">
+      </div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Примечания для клиента</label>
+      <textarea id="kpNotes" oninput="renderKP()">Стоимость предварительная. Точный расчёт — после контрольного обмера на объекте.</textarea>
+    </div>
+    <div class="actions">
+      <button onclick="goStep(3)">← Назад к деталировке</button>
+      <div class="spacer"></div>
+      <button class="primary" id="kpDownloadBtn" onclick="downloadKp()">Скачать КП</button>
+    </div>
+    <div class="hint" id="kpDlHint" style="margin-top:10px"></div>
+  </section>
+
+  <div data-step="4" hidden id="kpWrap">
+    <div id="kpDoc"></div>
+  </div>
+
+  <div class="modal-overlay no-print" id="saveModal" hidden>
+    <div class="modal-box">
+      <h3>Сохранить опрос перед расчётом?</h3>
+      <p class="hint">Данные опроса можно скачать файлом (.json) и позже открыть заново на шаге 1 — например, чтобы вернуться к проекту или передать его коллеге.</p>
+      <div class="modal-actions">
+        <button onclick="closeSaveModal()">Отмена</button>
+        <button onclick="skipSaveGoDetailing()">Без сохранения →</button>
+        <button class="primary" onclick="saveAndGoDetailing()">Сохранить и продолжить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ================= ПРАЙСЫ (встраиваются build_app.py из assets/*.csv) ============ */
+const LDSP   = [{"decor": "W960", "st": "SM/ST7", "name": "Белый классический", "group": 1, "priceM2": 608.35, "priceSheet": 3526.0}, {"decor": "H1145", "st": "ST10", "name": "Дуб Бардолино натуральный", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "H1732", "st": "ST9", "name": "Береза песочная", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "H1910", "st": "ST9", "name": "Бук луговой", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "H3043", "st": "ST12", "name": "Эвкалипт темно-коричневый", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "H3734", "st": "ST9", "name": "Орех Дижон натуральный", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "U104", "st": "ST9", "name": "Алебастр белый", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "U113", "st": "ST9", "name": "Коттон бежевый", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "U708", "st": "ST9", "name": "Светло-серый", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "U961", "st": "ST7", "name": "Чёрный графит ", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "U999", "st": "ST7", "name": "Чёрный", "group": 3, "priceM2": 678.4, "priceSheet": 3932.0}, {"decor": "H1277", "st": "ST9", "name": "Акация Лэйклэнд светлая", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "H3395", "st": "ST12", "name": "Дуб Корбридж натуральный", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "H3840", "st": "ST9", "name": "Клён Мандаль натуральный", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U156", "st": "ST9", "name": "Бежевый песок", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U216", "st": "ST9", "name": "Камель бежевый", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U220", "st": "ST9", "name": "Бежевый нежный", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U702", "st": "ST9", "name": "Кашемир серый", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U732", "st": "ST9", "name": "Серый пыльный (серый асфальт)", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U763", "st": "ST9", "name": "Серый перламутровый", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U775", "st": "ST9", "name": "Бело-серый (Серый дымчатый)", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "U963", "st": "ST9", "name": "Диамант серый (антрацит)", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "W1000", "st": "ST9", "name": "Белый Премиум", "group": 4, "priceM2": 699.62, "priceSheet": 4055.0}, {"decor": "F765", "st": "ST20", "name": "Серебристый матовый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1113", "st": "ST10", "name": "Дуб Канзас коричневый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1199", "st": "ST12", "name": "Дуб термо чёрно-коричневый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1225", "st": "ST12", "name": "Ясень Тронхейм", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1318", "st": "ST10", "name": "Дикий дуб натуральный", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1401", "st": "ST22", "name": "Сосна Касцина", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1487", "st": "ST22", "name": "Пихта Брамберг", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1636", "st": "ST12", "name": "Вишня Локарно", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1715", "st": "ST12", "name": "Орех Парона", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3012", "st": "ST22", "name": "Кокоболо натуральный", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3131", "st": "ST12", "name": "Дуб Давос натуральный", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3133", "st": "ST12", "name": "Дуб Давос трюфель", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3156", "st": "ST12", "name": "Дуб Корбридж серый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3157", "st": "ST12", "name": "Дуб Винченца", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3398", "st": "ST12", "name": "Дуб Кендал коньяк", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3430", "st": "ST22", "name": "Сосна Аланд белая", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3433", "st": "ST22", "name": "Сосна Аланд полярная", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3450", "st": "ST22", "name": "Флитвуд белый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H3860", "st": "ST9", "name": "Клён сахарный шампань", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U115", "st": "ST9", "name": "Карат бежевый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U201", "st": "ST9", "name": "Серая галька", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U222", "st": "ST9", "name": "Крем бежевый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U705", "st": "ST9", "name": "Ангора серая", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U707", "st": "ST9", "name": "Шёлк серый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U727", "st": "ST9", "name": "Серый камень", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U740", "st": "ST9", "name": "Серо-коричневый темный", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U741", "st": "ST9", "name": "Лава серая", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U748", "st": "ST9", "name": "Трюфель коричневый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U750", "st": "ST9", "name": "Ярко-серый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U755", "st": "ST9", "name": "Серый Гавана", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U767", "st": "ST9", "name": "Кубанит серый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U780", "st": "ST9", "name": "Серый монументальный", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U788", "st": "ST9", "name": "Арктика серый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U899", "st": "ST9", "name": "Нежный чёрный", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U960", "st": "ST9", "name": "Оникс серый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "U968", "st": "ST9", "name": "Серый уголь", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "W1100", "st": "ST9", "name": "Белый Альпийский", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "W1200", "st": "ST9", "name": "Фарфор белый", "group": 5, "priceM2": 720.67, "priceSheet": 4177.0}, {"decor": "H1303", "st": "ST12", "name": "Дуб Бельмонт коричневый", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H1362", "st": "ST12", "name": "Дуб Барония светлый", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3170", "st": "ST12", "name": "Дуб Кендал натуральный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3303", "st": "ST10", "name": "Дуб Гамильтон натуральный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3331", "st": "ST10", "name": "Дуб Небраска натуральный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3700", "st": "ST10", "name": "Орех Пацифик натуральный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3702", "st": "ST10", "name": "Орех Пацифик табак", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3710", "st": "ST12", "name": "Орех Карини натуральный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "H3730", "st": "ST10", "name": "Гикори натуральный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U211", "st": "ST9", "name": "Миндаль бежевый", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U311", "st": "ST9", "name": "Бургундский красный", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U325", "st": "ST9", "name": "Розовый антик", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U504", "st": "ST9", "name": "Альпийское озеро", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U525", "st": "ST9", "name": "Делфт голубой", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U540", "st": "ST9", "name": "Деним голубой", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "U630", "st": "ST9", "name": "Зелёный лимон ", "group": 6, "priceM2": 752.07, "priceSheet": 4359.0}, {"decor": "F186", "st": "ST9", "name": "Бетон Чикаго светло-серый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F187", "st": "ST9", "name": "Бетон Чикаго тёмно-серый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F206", "st": "ST9", "name": "Камень Пьетра Гриджиа чёрный", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F235", "st": "ST10", "name": "Сланец Скиваро", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F243", "st": "ST10", "name": "Мрамор Кандела светло-серый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F416", "st": "ST10", "name": "Текстиль бежевый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F433", "st": "ST10", "name": "Лён антрацит", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F685", "st": "ST10", "name": "Акапулько", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F800", "st": "ST9", "name": "Мрамор Кристалл", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H1242", "st": "ST10", "name": "Акация Шеффилд натуральный", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H1312", "st": "ST10", "name": "Дуб Уайт-Ривер песочно-бежевый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H1313", "st": "ST10", "name": "Дуб Уайт-Ривер серо-коричневый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H1330", "st": "ST10", "name": "Дуб Санта-Фе винтаж", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H1399", "st": "ST10", "name": "Дуб Денвер трюфель", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H1710", "st": "ST10", "name": "Каштан Кентукки песочный", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H2033", "st": "ST10", "name": "Дуб Хантон тёмный", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H305", "st": "ST12", "name": "Дуб Тонсберг натуральный", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "H309", "st": "ST12", "name": "Дуб Тонсберг коричневый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U125", "st": "ST9", "name": "Желтый песок", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U163", "st": "ST9", "name": "Карри жёлтый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U250", "st": "ST9", "name": "Карамель беж", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U321", "st": "ST9", "name": "Красный китайский", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U335", "st": "ST9", "name": "Красно-коричневый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U350", "st": "ST9", "name": "Сиена оранж", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U502", "st": "ST9", "name": "Синий дымчатый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U599", "st": "ST9", "name": "Индиго синий", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U604", "st": "ST9", "name": "Зелёный эвкалипт", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U636", "st": "ST9", "name": "Фьерд зеленый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U638", "st": "ST9", "name": "Зелёный шалфей", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U665", "st": "ST9", "name": "Зелёный камень", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U669", "st": "ST9", "name": "Серо-зеленый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U699", "st": "ST9", "name": "Зелёный еловый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U818", "st": "ST9", "name": "Тёмно-коричневый", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U830", "st": "ST9", "name": "Карамель нюд", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "U999", "st": "ST19", "name": "Чёрный", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "W1000", "st": "ST19", "name": "Белый Премиум", "group": 7, "priceM2": 794.34, "priceSheet": 4604.0}, {"decor": "F323", "st": "ST20", "name": "Кобра бронза", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "F528", "st": "ST20", "name": "Металл брашированный бронзовый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H1223", "st": "ST19", "name": "Ясень Севилья", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H1307", "st": "ST19", "name": "Орех Вармия коричневый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H1316", "st": "ST17", "name": "Дуб текстурный", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H1708", "st": "ST17", "name": "Каштан Брайтон", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H1714", "st": "ST19", "name": "Орех Линкольн", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3003", "st": "ST19", "name": "Дуб Норидж", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3146", "st": "ST19", "name": "Дуб Лоренцо бежево-серый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3152", "st": "ST19", "name": "Дуб Виченца беленый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3190", "st": "ST19", "name": "Металлик Файнлайн антрацит", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3195", "st": "ST19", "name": "Файнлайн белый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3197", "st": "ST19", "name": "Файнлайн средне-серый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3198", "st": "ST19", "name": "Файнлайн темно-коричневый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3322", "st": "ST17", "name": "Дуб Ровато натуральный светлый", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3786", "st": "ST17", "name": "Древесина Боливар натуральная", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H3787", "st": "ST17", "name": "Древесина Боливар коричневая", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H7586", "st": "ST17", "name": "Ноче Альба табак", "group": 8, "priceM2": 883.71, "priceSheet": 5122.0}, {"decor": "H1142", "st": "ST36", "name": "Дуб Сакраменто коричневый", "group": 9, "priceM2": 1121.46, "priceSheet": 6500.0}, {"decor": "H1250", "st": "ST36", "name": "Ясень Наварра", "group": 9, "priceM2": 1121.46, "priceSheet": 6500.0}, {"decor": "H3154", "st": "ST36", "name": "Дуб Чарльстон тёмно-коричневый", "group": 9, "priceM2": 1121.46, "priceSheet": 6500.0}, {"decor": "U998", "st": "ST38", "name": "Лес чёрный", "group": 9, "priceM2": 1121.46, "priceSheet": 6500.0}, {"decor": "W1000", "st": "ST38", "name": "Белый Премиум", "group": 9, "priceM2": 1121.46, "priceSheet": 6500.0}, {"decor": "H1176", "st": "ST37", "name": "Дуб Галифакс белый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1180", "st": "ST37", "name": "Дуб Галифакс натуральный", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1181", "st": "ST37", "name": "Дуб Галифакс табак", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1344", "st": "ST32", "name": "Дуб Шерман коньяк коричневый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1346", "st": "ST32", "name": "Дуб Шерман антрацит", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1367", "st": "ST40", "name": "Дуб Каселла натуральный светлый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1369", "st": "ST40", "name": "Дуб Каселла каштановый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1385", "st": "ST40", "name": "Дуб Каселла натуральный", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H1386", "st": "ST40", "name": "Дуб Каселла коричневый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H3176", "st": "ST37", "name": "Дуб Галифакс олово", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H3309", "st": "ST28", "name": "Дуб Гладстоун песочный", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H3317", "st": "ST28", "name": "Дуб Кунео коричневый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H3325", "st": "ST28", "name": "Дуб Гладстоун табак", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}, {"decor": "H3359", "st": "ST32", "name": "Дуб Давенпорт натуральный светлый", "group": 10, "priceM2": 1195.65, "priceSheet": 6930.0}];
+const KROMKA = [{"name": "Кромка 0,4*19", "thickness": 0.4, "width": 19.0, "priceSolid": 20.0, "priceWood": 23.0, "lot": 20.0}, {"name": "Кромка 0,8*19", "thickness": 0.8, "width": 19.0, "priceSolid": 44.0, "priceWood": 44.0, "lot": 15.0}, {"name": "Кромка 2*19", "thickness": 2.0, "width": 19.0, "priceSolid": 64.0, "priceWood": 69.0, "lot": 5.0}, {"name": "Кромка 2*35", "thickness": 2.0, "width": 35.0, "priceSolid": 116.0, "priceWood": 128.0, "lot": 5.0}, {"name": "Кромка 2*43", "thickness": 2.0, "width": 43.0, "priceSolid": 185.0, "priceWood": 200.0, "lot": 5.0}, {"name": "Кромка 0,8*23", "thickness": 0.8, "width": 23.0, "priceSolid": 47.0, "priceWood": 47.0, "lot": 5.0}, {"name": "Кромка 0,8*28", "thickness": 0.8, "width": 28.0, "priceSolid": 85.0, "priceWood": 87.0, "lot": 5.0}];
+const MISC   = [{"category": "ЛДСП", "item": "ЛДСП Lamarty 16мм (корпус) — плейсхолдер", "unit": "м2", "price": 1550.0}, {"category": "ЛДСП", "item": "ЛДСП Lamarty 16мм (фасад) — плейсхолдер", "unit": "м2", "price": 2000.0}, {"category": "МДФ АГТ", "item": "Фасад МДФ АГТ глянец — плейсхолдер", "unit": "м2", "price": 4200.0}, {"category": "МДФ АГТ", "item": "Фасад МДФ АГТ мат — плейсхолдер", "unit": "м2", "price": 3900.0}, {"category": "Эмаль", "item": "Фасад эмаль (крашеный МДФ) — плейсхолдер", "unit": "м2", "price": 7500.0}, {"category": "Шпон", "item": "Фасад шпон натуральный — плейсхолдер", "unit": "м2", "price": 8500.0}, {"category": "Стекло", "item": "Фасад стекло лакобель — плейсхолдер", "unit": "м2", "price": 6500.0}, {"category": "Стекло", "item": "Фасад стекло сатинато — плейсхолдер", "unit": "м2", "price": 7000.0}, {"category": "Камень", "item": "Фасад камень искусственный — плейсхолдер", "unit": "м2", "price": 15000.0}, {"category": "Крепёж", "item": "Эксцентрик", "unit": "шт", "price": 25.0}, {"category": "Крепёж", "item": "Конфирмат", "unit": "шт", "price": 15.0}, {"category": "Крепёж", "item": "Шкант", "unit": "шт", "price": 5.0}, {"category": "Фурнитура Blum", "item": "Петля Blum CLIP top", "unit": "шт", "price": 650.0}, {"category": "Фурнитура Blum", "item": "Петля Blum CLIP top усиленная", "unit": "шт", "price": 950.0}, {"category": "Фурнитура Blum", "item": "Направляющие Blum TANDEM (комплект)", "unit": "компл", "price": 3200.0}, {"category": "Фурнитура", "item": "Направляющие шариковые (плейсхолдер)", "unit": "компл", "price": 1800.0}, {"category": "Фурнитура Blum", "item": "Направляющие Blum Legrabox (комплект)", "unit": "компл", "price": 4500.0}, {"category": "Фурнитура Blum", "item": "Направляющие Blum Movento (комплект)", "unit": "компл", "price": 3800.0}, {"category": "Фурнитура Blum", "item": "Механизм Blum Aventos HK", "unit": "шт", "price": 7000.0}, {"category": "Фурнитура Blum", "item": "Механизм Blum Aventos HF", "unit": "шт", "price": 9500.0}, {"category": "Фурнитура Blum", "item": "Доводчик Blum BLUMOTION", "unit": "шт", "price": 450.0}, {"category": "Фурнитура", "item": "Ручка накладная", "unit": "шт", "price": 350.0}, {"category": "Фурнитура", "item": "Профиль push-to-open", "unit": "шт", "price": 400.0}, {"category": "Подсветка", "item": "LED-лента + блок питания", "unit": "м.п.", "price": 900.0}, {"category": "Подсветка", "item": "Сенсорный выключатель", "unit": "шт", "price": 600.0}, {"category": "Фурнитура", "item": "Штанга овальная (плейсхолдер)", "unit": "м.п.", "price": 1200.0}, {"category": "Фурнитура", "item": "Штанга круглая (плейсхолдер)", "unit": "м.п.", "price": 950.0}, {"category": "Работы", "item": "Раскрой и кромление", "unit": "м2", "price": 350.0}, {"category": "Работы", "item": "Сборка модуля", "unit": "шт", "price": 2500.0}, {"category": "Работы", "item": "Монтаж на объекте", "unit": "шт", "price": 3000.0}, {"category": "Прочее", "item": "Задняя стенка ХДФ", "unit": "м2", "price": 380.0}];
+const LOGO   = "data:image/png;base64,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";
+
+/* ================= КОНСТАНТЫ И ДОПУЩЕНИЯ РАСЧЁТА =================
+   Всё, что здесь — инженерные допущения, а не данные из прайса.
+   Каждое дублируется пользователю в разделе «Допущения». */
+const PANEL_T          = 16;    // толщина ЛДСП корпуса и фасада, мм
+const BACK_T           = 3;     // ХДФ задней стенки, мм
+const GAP_FACADE        = 3;     // зазор между фасадами, мм
+const SHELF_BACK        = 20;    // отступ полки от задней стенки, мм
+const DENSITY_LDSP      = 700;   // кг/м³ — для расчёта веса фасада
+const HEAVY_KG          = 25;    // фасад тяжелее — усиленная петля
+const HARDWARE_FLAT_FEE = 2000;  // фиксированная стоимость крепёжной фурнитуры на модуль, без построчной детализации
+const MATERIAL_WASTE_COEF = 1.2; // коэффициент на раскрой/отход для ЛДСП, АГТ и кромки — площадь/метраж считаются с запасом ×1.2
+const EDGE_RATE_LDSP    = 45;    // ₽/м.п. — кромка 0,8мм на деталях/фасадах из ЛДСП
+const EDGE_RATE_AGT     = 200;   // ₽/м.п. — кромка на фасадах из АГТ
+const EDGE_LABEL_LDSP   = "Кромка 0,8мм (ЛДСП)";
+const EDGE_LABEL_AGT    = "Кромка (АГТ)";
+
+const WALL_PANEL_TYPE = "Декоративная стеновая панель";
+const MODULE_TYPES = ["Нижний модуль", "Верхний модуль", "Пенал", "Антресоль", "Тумба", WALL_PANEL_TYPE];
+
+/* Какие доп. кнопки («+Стол»/«+Кровать»/«+Зеркало») видны в блоке «Модули»
+   в зависимости от типа изделия. Всё остальное в интерфейсе — общее. */
+const PRODUCT_MODULE_EXTRAS = {
+  kids:    { desk: true, bed: true, mirror: true },
+  bedroom: { desk: true, bed: true, mirror: true },
+  office:  { desk: true, bed: false, mirror: false },
+  hallway: { desk: false, bed: false, mirror: true },
+};
+function productExtras() {
+  return PRODUCT_MODULE_EXTRAS[$("productType").value] || { desk: false, bed: false, mirror: false };
+}
+
+const FACADE_TYPE_OPTIONS = [
+  { value: "none",     label: "Без фасада" },
+  { value: "ldsp",     label: "ЛДСП" },
+  { value: "agt",      label: "АГТ" },
+  { value: "enamel",   label: "Эмаль" },
+  { value: "veneer",   label: "Шпон" },
+  { value: "film",     label: "Плёнка" },
+  { value: "aluglass", label: "Алюминиевый фасад со стеклом" },
+];
+const FACADE_KIND_LABEL = { agt: "АГТ", enamel: "Эмаль", veneer: "Шпон", film: "Плёнка" };
+
+const DRAWER_TYPES = [
+  { value: "hidden",    label: "Скрытый (Tandembox)", priceItem: "Направляющие Blum TANDEM (комплект)" },
+  { value: "ball",      label: "Шариковый",           priceItem: "Направляющие шариковые (плейсхолдер)" },
+  { value: "legrabox",  label: "Legrabox",            priceItem: "Направляющие Blum Legrabox (комплект)" },
+];
+
+const LIGHTING_OPTIONS = [
+  { value: "side1",        label: "Вдоль 1 бок" },
+  { value: "side2",        label: "Вдоль 2 боковины" },
+  { value: "roof",         label: "Вдоль крыша" },
+  { value: "shelves",      label: "Вдоль все полки" },
+  { value: "shelves_side", label: "Полки и боковина" },
+];
+
+const st = {
+  photo: null,
+  modules: [],
+  detail: null,
+  priceOverrides: {},   // "ldsp:<decor>" / "kromka:<name>" / "misc:<item>" -> {name?, price?}
+  facadeSpec: { type: "ldsp", decor: LDSP[0] ? LDSP[0].decor : "", name: "", priceM2: null, profilePriceM: null, glassPriceM2: null },
+};
+
+/* ================= УТИЛИТЫ ================= */
+function $(id) { return document.getElementById(id); }
+function fmt(n) {
+  return (n === null || n === undefined || isNaN(n)) ? "—" : n.toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmt2(n) {
+  return (n === null || n === undefined || isNaN(n)) ? "—" : n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/* d — исходный (неизменный) код декора, на который ссылаются модули/фасады.
+   Если в «Итого по материалам» выбрали в списке другой декор — swapDecor
+   переключает реальные данные (название/цену) на него; price/name поверх
+   этого — ручная правка цены/названия уже после подстановки. */
+function decorById(d) {
+  const ov = st.priceOverrides["ldsp:" + d] || {};
+  const baseCode = ov.swapDecor || d;
+  const r = LDSP.find((x) => x.decor === baseCode);
+  if (!r) return null;
+  const priceM2 = (ov.price !== undefined && ov.price !== null) ? ov.price : r.priceM2;
+  const name = ov.name != null ? ov.name : r.name;
+  return Object.assign({}, r, { decor: baseCode, name, priceM2 });
+}
+function miscById(item) {
+  const ov = st.priceOverrides["misc:" + item] || {};
+  const baseItem = ov.swapItem || item;
+  const r = MISC.find((x) => x.item === baseItem);
+  if (!r) return null;
+  const price = (ov.price !== undefined && ov.price !== null) ? ov.price : r.price;
+  const name = ov.name != null ? ov.name : r.item;
+  return Object.assign({}, r, { item: name, price });
+}
+
+function ldspOptionsHtml(selected) {
+  const groups = {};
+  LDSP.forEach((r) => { (groups[r.group] = groups[r.group] || []).push(r); });
+  return Object.keys(groups)
+    .sort((a, b) => a - b)
+    .map((g) => {
+      const inner = groups[g]
+        .map((r) => `<option value="${esc(r.decor)}" ${r.decor === selected ? "selected" : ""}>${esc(r.decor)} ${esc(r.st)} — ${esc(r.name)} (${fmt2(r.priceM2)} ₽/м²)</option>`)
+        .join("");
+      return `<optgroup label="Ценовая группа ${esc(g)} — ${fmt2(groups[g][0].priceM2)} ₽/м²">${inner}</optgroup>`;
+    })
+    .join("");
+}
+
+/* Количество петель по высоте фасада (пороги заданы явно, не выведены). */
+function hingeCount(heightMm, weightKg) {
+  let n;
+  if (heightMm <= 1000) n = 2;
+  else if (heightMm <= 1500) n = 3;
+  else if (heightMm <= 2000) n = 4;
+  else n = 5;
+  if (weightKg > HEAVY_KG) n += 1;
+  return n;
+}
+
+function lightingLengthMm(placement, m, innerW) {
+  switch (placement) {
+    case "side1": return m.h;
+    case "side2": return m.h * 2;
+    case "roof": return innerW;
+    case "shelves": return innerW * (m.shelves || 0);
+    case "shelves_side": return innerW * (m.shelves || 0) + m.h;
+    default: return 0;
+  }
+}
+function lightingPlacementLabel(p) {
+  const found = LIGHTING_OPTIONS.find((o) => o.value === p);
+  return found ? found.label : "";
+}
+
+/* Стоимость/материал фасада по facadeSpec — общая логика для дверей, ящиков,
+   верхнего блока «Материалы» и мини-блока «Фасады модуля». */
+function facadeMaterialInfo(spec) {
+  if (!spec || spec.type === "none") return null;
+  if (spec.type === "ldsp") {
+    const r = decorById(spec.decor);
+    return { mode: "m2", priceM2: r ? r.priceM2 : null, label: r ? `ЛДСП Egger ${r.decor} ${r.st} — ${r.name}` : "ЛДСП", ldspRow: r, origDecor: spec.decor, edgeKind: "ldsp", applyWaste: true };
+  }
+  if (FACADE_KIND_LABEL[spec.type]) {
+    const kindLabel = FACADE_KIND_LABEL[spec.type];
+    return {
+      mode: "m2",
+      priceM2: (spec.priceM2 === undefined ? null : spec.priceM2),
+      label: kindLabel + (spec.name ? " — " + spec.name : ""),
+      edgeKind: spec.type === "agt" ? "agt" : "ldsp",
+      applyWaste: spec.type === "agt",
+    };
+  }
+  if (spec.type === "aluglass") {
+    return {
+      mode: "aluglass",
+      profilePriceM: (spec.profilePriceM === undefined ? null : spec.profilePriceM),
+      glassPriceM2: (spec.glassPriceM2 === undefined ? null : spec.glassPriceM2),
+      label: "Алюминиевый фасад со стеклом",
+    };
+  }
+  return null;
+}
+
+function cloneFacadeSpec(spec) { return JSON.parse(JSON.stringify(spec)); }
+
+/* ================= ИНИЦИАЛИЗАЦИЯ ФОРМЫ ================= */
+function initSelects() {
+  $("corpusDecor").innerHTML = ldspOptionsHtml(LDSP[0] ? LDSP[0].decor : "");
+  $("corpusDecor").value = LDSP[0] ? LDSP[0].decor : "";
+  updateDecorHint("corpusDecor", "corpusDecorHint");
+  $("corpusDecor").onchange = () => updateDecorHint("corpusDecor", "corpusDecorHint");
+
+  $("facadeType").innerHTML = FACADE_TYPE_OPTIONS.map((o) => `<option value="${o.value}">${esc(o.label)}</option>`).join("");
+  $("facadeType").value = st.facadeSpec.type;
+  renderTopFacadeSubfields();
+}
+
+function updateDecorHint(selId, hintId) {
+  const r = decorById($(selId).value);
+  $(hintId).textContent = r ? `${r.name} · группа ${r.group} · ${fmt2(r.priceM2)} ₽/м² · лист ${fmt(r.priceSheet)} ₽` : "";
+}
+
+/* Кнопки «+Стол»/«+Кровать»/«+Зеркало» видны только для подходящих типов
+   изделия (см. PRODUCT_MODULE_EXTRAS) — остальной интерфейс не меняется. */
+function renderModuleExtraButtons() {
+  const ex = productExtras();
+  $("addDeskBtn").hidden = !ex.desk;
+  $("addBedBtn").hidden = !ex.bed;
+  $("addMirrorBtn").hidden = !ex.mirror;
+}
+
+/* ================= МАТЕРИАЛЫ — ТИП ФАСАДА (уровень проекта) ================= */
+function onTopFacadeTypeChange() {
+  st.facadeSpec.type = $("facadeType").value;
+  renderTopFacadeSubfields();
+}
+
+function renderTopFacadeSubfields() {
+  const spec = st.facadeSpec;
+  const box = $("facadeSubfields");
+  if (spec.type === "none") { box.innerHTML = ""; return; }
+  if (spec.type === "ldsp") {
+    box.innerHTML = `
+      <div class="field">
+        <label>Декор фасада <span class="req">*</span></label>
+        <select id="facadeDecor" onchange="st.facadeSpec.decor=this.value; updateDecorHint('facadeDecor','facadeDecorHint');">
+          ${ldspOptionsHtml(spec.decor)}
+        </select>
+        <div class="decor-hint" id="facadeDecorHint"></div>
+      </div>`;
+    if (!spec.decor) spec.decor = LDSP[0] ? LDSP[0].decor : "";
+    updateDecorHint("facadeDecor", "facadeDecorHint");
+    return;
+  }
+  if (FACADE_KIND_LABEL[spec.type]) {
+    box.innerHTML = `
+      <div class="field">
+        <label>Название декора</label>
+        <input value="${esc(spec.name || "")}" oninput="st.facadeSpec.name=this.value" placeholder="например, RAL 9003 глянец">
+      </div>
+      <div class="field">
+        <label>Цена, ₽/м²</label>
+        <input type="number" min="0" step="1" value="${spec.priceM2 == null ? "" : spec.priceM2}" oninput="st.facadeSpec.priceM2=this.value===''?null:parseFloat(this.value)">
+      </div>`;
+    return;
+  }
+  if (spec.type === "aluglass") {
+    box.innerHTML = `
+      <div class="field">
+        <label>Профиль, ₽/м.п.</label>
+        <input type="number" min="0" step="1" value="${spec.profilePriceM == null ? "" : spec.profilePriceM}" oninput="st.facadeSpec.profilePriceM=this.value===''?null:parseFloat(this.value)">
+      </div>
+      <div class="field">
+        <label>Стекло, ₽/м²</label>
+        <input type="number" min="0" step="1" value="${spec.glassPriceM2 == null ? "" : spec.glassPriceM2}" oninput="st.facadeSpec.glassPriceM2=this.value===''?null:parseFloat(this.value)">
+      </div>`;
+    return;
+  }
+}
+
+function moduleFacadeSubfieldsHtml(i) {
+  const spec = st.modules[i].facade.spec;
+  if (spec.type === "none") return "";
+  if (spec.type === "ldsp") {
+    return `
+      <div class="field">
+        <label>Декор фасада</label>
+        <select onchange="st.modules[${i}].facade.spec.decor=this.value">
+          ${ldspOptionsHtml(spec.decor)}
+        </select>
+      </div>`;
+  }
+  if (FACADE_KIND_LABEL[spec.type]) {
+    return `
+      <div class="field">
+        <label>Название декора</label>
+        <input value="${esc(spec.name || "")}" oninput="st.modules[${i}].facade.spec.name=this.value">
+      </div>
+      <div class="field">
+        <label>Цена, ₽/м²</label>
+        <input type="number" min="0" step="1" value="${spec.priceM2 == null ? "" : spec.priceM2}" oninput="st.modules[${i}].facade.spec.priceM2=this.value===''?null:parseFloat(this.value)">
+      </div>`;
+  }
+  if (spec.type === "aluglass") {
+    return `
+      <div class="field">
+        <label>Профиль, ₽/м.п.</label>
+        <input type="number" min="0" step="1" value="${spec.profilePriceM == null ? "" : spec.profilePriceM}" oninput="st.modules[${i}].facade.spec.profilePriceM=this.value===''?null:parseFloat(this.value)">
+      </div>
+      <div class="field">
+        <label>Стекло, ₽/м²</label>
+        <input type="number" min="0" step="1" value="${spec.glassPriceM2 == null ? "" : spec.glassPriceM2}" oninput="st.modules[${i}].facade.spec.glassPriceM2=this.value===''?null:parseFloat(this.value)">
+      </div>`;
+  }
+  return "";
+}
+
+/* ================= МОДУЛИ ================= */
+function addModule(preset) {
+  const w = +$("totalW").value || 900;
+  const h = +$("totalH").value || 2400;
+  const d = +$("totalD").value || 600;
+  // Новый модуль наследует фасады от последнего добавленного модуля-шкафа
+  // (а не от общих настроек блока «Материалы»), чтобы, например, 2-й
+  // модуль по умолчанию выглядел так же, как 1-й, а не сбрасывался к
+  // дефолту сверху. Стол/кровать/зеркало в этой цепочке не участвуют — у
+  // них нет facade-мини-блока такой формы.
+  const lastCabinet = [...st.modules].reverse().find((mm) => !mm.kind || mm.kind === "cabinet");
+  const facadeSource = lastCabinet ? lastCabinet.facade : {
+    spec: st.facadeSpec,
+    count: st.facadeSpec.type === "none" ? 0 : 2,
+    hingeType: "regular",
+    softClose: true,
+    opening: "Распашной",
+    handle: "Ручка накладная",
+  };
+  st.modules.push(Object.assign({
+    kind: "cabinet",
+    moduleType: MODULE_TYPES[0],
+    corpusDecor: $("corpusDecor").value || (LDSP[0] ? LDSP[0].decor : ""),
+    h, w, d,
+    shelves: 4,
+    drawers: [],
+    divider: { enabled: false, height: 400, shelves: 2 },
+    rod: { enabled: false, shape: "oval", color: "" },
+    lighting: { enabled: false, placement: "side1" },
+    extras: [],
+    facade: {
+      spec: cloneFacadeSpec(facadeSource.spec),
+      count: facadeSource.count,
+      hingeType: facadeSource.hingeType,
+      softClose: facadeSource.softClose,
+      opening: facadeSource.opening,
+      handle: facadeSource.handle,
+    },
+  }, preset || {}));
+  renderModules();
+}
+
+function addDeskModule() {
+  st.modules.push({
+    kind: "desk",
+    corpusDecor: $("corpusDecor").value || (LDSP[0] ? LDSP[0].decor : ""),
+    length: 1200, width: 600, thickness: 32,
+    support: defaultSupport(720),
+    drawers: [],
+  });
+  renderModules();
+}
+
+function addBedModule() {
+  st.modules.push({
+    kind: "bed",
+    corpusDecor: $("corpusDecor").value || (LDSP[0] ? LDSP[0].decor : ""),
+    length: 2000, width: 1600, headboardHeight: 1000,
+    headboard: { enabled: true, spec: cloneFacadeSpec(st.facadeSpec) },
+    support: defaultSupport(150),
+    drawers: [],
+  });
+  renderModules();
+}
+
+function addMirrorModule() {
+  st.modules.push({ kind: "mirror", h: 800, w: 600, mirrorType: "", priceM2: null });
+  renderModules();
+}
+
+function defaultSupport(ldspHeight) {
+  return {
+    type: "ldsp",
+    ldsp: { height: ldspHeight, depth: 400, width: 60 },
+    metal: { color: "", profileD: 40, profileW: 40, profileH: 2, lengthM: null, priceM: null },
+  };
+}
+
+function removeModule(i) {
+  st.modules.splice(i, 1);
+  if (!st.modules.length) addModule();
+  else renderModules();
+}
+
+function setMod(i, key, val, kind) {
+  if (kind === "int") {
+    const n = parseInt(val, 10);
+    st.modules[i][key] = isNaN(n) ? 0 : Math.max(0, n);
+  } else {
+    st.modules[i][key] = val;
+  }
+}
+
+/* Границы «в которые вписывается ящик» — у шкафа это глубина/внутренняя
+   ширина корпуса, у стола/кровати нет корпуса как такового, поэтому
+   используем габариты столешницы/рамы (ширина стола/кровати — как
+   глубина, длина — как ширина). */
+function drawerBounds(m) {
+  if (m.kind === "desk" || m.kind === "bed") return { depth: m.width, width: m.length - 2 * PANEL_T };
+  return { depth: m.d, width: m.w - 2 * PANEL_T };
+}
+
+function addDrawer(i) {
+  const m = st.modules[i];
+  const bounds = drawerBounds(m);
+  const depth = Math.max(50, Math.floor((bounds.depth - 100) / 50) * 50);
+  const defaultHeight = m.kind === "desk" ? 60 : (m.kind === "bed" ? 150 : 120);
+  m.drawers.push({
+    type: "hidden",
+    height: defaultHeight,
+    depth,
+    width: Math.max(50, bounds.width - 20),
+    facadeHeight: m.kind === "desk" ? 60 : (m.kind === "bed" ? 150 : 200),
+    facadeColor: m.corpusDecor,
+  });
+  renderModules();
+}
+function removeDrawer(i, di) { st.modules[i].drawers.splice(di, 1); renderModules(); }
+
+function addExtra(i) { st.modules[i].extras.push({ name: "", qty: 1, price: null }); renderModules(); }
+function removeExtra(i, ei) { st.modules[i].extras.splice(ei, 1); renderModules(); }
+
+/* Примерная схема внутреннего наполнения модуля (вид спереди, без фасадов) —
+   не настоящий чертёж: раскладка приблизительная (ящики снизу вверх,
+   полки равномерно в оставшейся высоте, штанга у верха свободной зоны),
+   но масштаб (мм → px) и пропорции модуля — настоящие. */
+function renderModuleSchematic(m) {
+  const VB_W = 150, VB_H = 190, PAD = 8;
+  const scale = Math.min((VB_W - 2 * PAD) / m.w, (VB_H - 2 * PAD) / m.h);
+  const boxW = m.w * scale, boxH = m.h * scale;
+  const x0 = (VB_W - boxW) / 2, y0 = (VB_H - boxH) / 2;
+  const yAt = (mmFromBottom) => y0 + boxH - mmFromBottom * scale;
+
+  let s = `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH.toFixed(1)}" fill="none" stroke="currentColor" stroke-width="1.5"/>`;
+
+  let cursorMm = 0;
+  (m.drawers || []).forEach((dr, di) => {
+    const bandH = Math.min(dr.facadeHeight, m.h - cursorMm);
+    if (bandH <= 0) return;
+    const yTop = yAt(cursorMm + bandH);
+    const hPx = bandH * scale;
+    s += `<rect x="${(x0 + 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${(boxW - 4).toFixed(1)}" height="${Math.max(hPx - 2, 1).toFixed(1)}" fill="var(--accent-soft)" stroke="currentColor" stroke-width="1"/>`;
+    if (hPx > 10) s += `<text x="${(x0 + boxW / 2).toFixed(1)}" y="${(yTop + hPx / 2 + 3).toFixed(1)}" font-size="7.5" text-anchor="middle" fill="currentColor">ящик ${di + 1}</text>`;
+    cursorMm += bandH + 8;
+  });
+
+  const openBottomMm = Math.min(cursorMm, m.h);
+  const openH = Math.max(0, m.h - openBottomMm);
+
+  if (m.shelves > 0 && openH > 0) {
+    const step = openH / (m.shelves + 1);
+    for (let k = 1; k <= m.shelves; k++) {
+      const y = yAt(openBottomMm + step * k);
+      s += `<line x1="${(x0 + 2).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x0 + boxW - 2).toFixed(1)}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-width="1"/>`;
+    }
+  }
+
+  if (m.rod && m.rod.enabled && openH > 20) {
+    const y = yAt(Math.min(openBottomMm + openH - 60, m.h - 10));
+    s += `<line x1="${(x0 + 6).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x0 + boxW - 6).toFixed(1)}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/>`;
+    s += `<circle cx="${(x0 + 6).toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="currentColor"/><circle cx="${(x0 + boxW - 6).toFixed(1)}" cy="${y.toFixed(1)}" r="1.6" fill="currentColor"/>`;
+  }
+
+  if (m.divider && m.divider.enabled) {
+    const xMid = x0 + boxW / 2;
+    const dH = Math.min(m.divider.height || 0, m.h);
+    const yTop = yAt(dH);
+    s += `<line x1="${xMid.toFixed(1)}" y1="${(y0 + boxH).toFixed(1)}" x2="${xMid.toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="currentColor" stroke-width="1.5"/>`;
+    if (m.divider.shelves > 0) {
+      const stepD = dH / (m.divider.shelves + 1);
+      for (let k = 1; k <= m.divider.shelves; k++) {
+        const y = yAt(stepD * k);
+        s += `<line x1="${xMid.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x0 + boxW - 2).toFixed(1)}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-width="0.75" stroke-dasharray="2 2"/>`;
+      }
+    }
+  }
+
+  if (!(m.drawers || []).length && !m.shelves && !(m.rod && m.rod.enabled) && !(m.divider && m.divider.enabled)) {
+    s += `<text x="${(x0 + boxW / 2).toFixed(1)}" y="${(y0 + boxH / 2).toFixed(1)}" font-size="8" text-anchor="middle" fill="currentColor" opacity="0.55">пусто</text>`;
+  }
+
+  return `<svg viewBox="0 0 ${VB_W} ${VB_H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+/* Блок «Ящики» — общая разметка для шкафа/стола/кровати (одинаковая
+   структура m.drawers[], разные дефолты выставляются в addDrawer()). */
+function renderDrawersHtml(m, i) {
+  return `
+    <div class="toggle-row">
+      <label>Ящик</label>
+      <button class="btn-sm" onclick="addDrawer(${i})">+ Добавить</button>
+    </div>
+    ${m.drawers.map((dr, di) => `
+      <div class="sub-panel">
+        <div class="mhead"><strong>Ящик ${di + 1}</strong><button class="btn-sm" onclick="removeDrawer(${i},${di})">Удалить</button></div>
+        <div class="grid">
+          <div class="field">
+            <label>Тип ящика</label>
+            <select onchange="st.modules[${i}].drawers[${di}].type=this.value">
+              ${DRAWER_TYPES.map((t) => `<option value="${t.value}" ${t.value === dr.type ? "selected" : ""}>${esc(t.label)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Высота, мм</label><input type="number" min="0" step="10" value="${dr.height}" oninput="st.modules[${i}].drawers[${di}].height=parseInt(this.value,10)||0"></div>
+          <div class="field"><label>Глубина, мм</label><input type="number" min="0" step="10" value="${dr.depth}" oninput="st.modules[${i}].drawers[${di}].depth=parseInt(this.value,10)||0"></div>
+          <div class="field"><label>Ширина, мм</label><input type="number" min="0" step="10" value="${dr.width}" oninput="st.modules[${i}].drawers[${di}].width=parseInt(this.value,10)||0"></div>
+          <div class="field"><label>Высота фасада ящика, мм</label><input type="number" min="0" step="10" value="${dr.facadeHeight}" oninput="st.modules[${i}].drawers[${di}].facadeHeight=parseInt(this.value,10)||0"></div>
+          <div class="field">
+            <label>Цвет фасада ящика</label>
+            <select onchange="st.modules[${i}].drawers[${di}].facadeColor=this.value">${ldspOptionsHtml(dr.facadeColor || m.corpusDecor)}</select>
+          </div>
+        </div>
+      </div>
+    `).join("")}
+  `;
+}
+
+/* Опора (столешницы стола / рамы кровати) — общий саб-компонент. */
+function renderSupportHtml(m, i) {
+  const s = m.support;
+  return `
+    <h4 class="sub-h">Опора</h4>
+    <div class="grid">
+      <div class="field">
+        <label>Опора</label>
+        <select onchange="st.modules[${i}].support.type=this.value">
+          <option value="ldsp" ${s.type === "ldsp" ? "selected" : ""}>ЛДСП</option>
+          <option value="metal" ${s.type === "metal" ? "selected" : ""}>Металл</option>
+        </select>
+      </div>
+      ${s.type === "ldsp" ? `
+        <div class="field"><label>Высота, мм</label><input type="number" min="0" step="10" value="${s.ldsp.height}" oninput="st.modules[${i}].support.ldsp.height=parseInt(this.value,10)||0"></div>
+        <div class="field"><label>Глубина, мм</label><input type="number" min="0" step="10" value="${s.ldsp.depth}" oninput="st.modules[${i}].support.ldsp.depth=parseInt(this.value,10)||0"></div>
+        <div class="field"><label>Ширина, мм</label><input type="number" min="0" step="10" value="${s.ldsp.width}" oninput="st.modules[${i}].support.ldsp.width=parseInt(this.value,10)||0"></div>
+      ` : `
+        <div class="field"><label>Цвет</label><input value="${esc(s.metal.color)}" oninput="st.modules[${i}].support.metal.color=this.value" placeholder="например, чёрный матовый"></div>
+        <div class="field"><label>Профиль Г, мм</label><input type="number" min="0" step="1" value="${s.metal.profileD}" oninput="st.modules[${i}].support.metal.profileD=parseInt(this.value,10)||0"></div>
+        <div class="field"><label>Профиль Ш, мм</label><input type="number" min="0" step="1" value="${s.metal.profileW}" oninput="st.modules[${i}].support.metal.profileW=parseInt(this.value,10)||0"></div>
+        <div class="field"><label>Профиль В, мм</label><input type="number" min="0" step="1" value="${s.metal.profileH}" oninput="st.modules[${i}].support.metal.profileH=parseInt(this.value,10)||0"></div>
+        <div class="field"><label>Длина опоры, п.м</label><input type="number" min="0" step="0.1" value="${s.metal.lengthM == null ? "" : s.metal.lengthM}" oninput="st.modules[${i}].support.metal.lengthM=this.value===''?null:parseFloat(this.value)"></div>
+        <div class="field"><label>Цена, ₽/п.м</label><input type="number" min="0" step="1" value="${s.metal.priceM == null ? "" : s.metal.priceM}" oninput="st.modules[${i}].support.metal.priceM=this.value===''?null:parseFloat(this.value)"></div>
+      `}
+    </div>
+  `;
+}
+
+function renderDeskCard(m, i) {
+  return `
+    <div class="module-card">
+      <div class="mhead">
+        <div class="mtitle">Модуль ${i + 1} — Стол</div>
+        <button class="btn-sm" onclick="removeModule(${i})">Удалить модуль</button>
+      </div>
+      <div class="grid">
+        <div class="field"><label>Длина столешницы, мм</label><input type="number" min="100" step="10" value="${m.length}" oninput="setMod(${i},'length',this.value,'int')"></div>
+        <div class="field"><label>Ширина столешницы, мм</label><input type="number" min="100" step="10" value="${m.width}" oninput="setMod(${i},'width',this.value,'int')"></div>
+        <div class="field">
+          <label>Высота (толщина) столешницы, мм</label>
+          <input type="number" min="16" step="1" value="${m.thickness}" oninput="setMod(${i},'thickness',this.value,'int')">
+        </div>
+        <div class="field">
+          <label>Цвет столешницы</label>
+          <select onchange="setMod(${i},'corpusDecor',this.value)">${ldspOptionsHtml(m.corpusDecor)}</select>
+        </div>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Толщина 32 мм — по умолчанию 2 слоя ЛДСП 16мм, склеенные вместе (считается как 2 листа на площадь столешницы).</p>
+
+      ${renderSupportHtml(m, i)}
+
+      <h4 class="sub-h">Наполнение</h4>
+      ${renderDrawersHtml(m, i)}
+    </div>
+  `;
+}
+
+function renderBedCard(m, i) {
+  return `
+    <div class="module-card">
+      <div class="mhead">
+        <div class="mtitle">Модуль ${i + 1} — Кровать</div>
+        <button class="btn-sm" onclick="removeModule(${i})">Удалить модуль</button>
+      </div>
+      <div class="grid">
+        <div class="field"><label>Длина, мм</label><input type="number" min="100" step="10" value="${m.length}" oninput="setMod(${i},'length',this.value,'int')"></div>
+        <div class="field"><label>Ширина, мм</label><input type="number" min="100" step="10" value="${m.width}" oninput="setMod(${i},'width',this.value,'int')"></div>
+        <div class="field"><label>Высота изголовья, мм</label><input type="number" min="0" step="10" value="${m.headboardHeight}" oninput="setMod(${i},'headboardHeight',this.value,'int')"></div>
+        <div class="field">
+          <label>Цвет рамы (ЛДСП)</label>
+          <select onchange="setMod(${i},'corpusDecor',this.value)">${ldspOptionsHtml(m.corpusDecor)}</select>
+        </div>
+      </div>
+
+      <h4 class="sub-h">Изголовье</h4>
+      <div class="checkline">
+        <input type="checkbox" id="hb_${i}" ${m.headboard.enabled ? "checked" : ""} onchange="st.modules[${i}].headboard.enabled=this.checked">
+        <label for="hb_${i}">Изголовье есть</label>
+      </div>
+      ${m.headboard.enabled ? `
+        <div class="grid">
+          <div class="field">
+            <label>Тип фасада изголовья</label>
+            <select onchange="st.modules[${i}].headboard.spec.type=this.value">
+              ${FACADE_TYPE_OPTIONS.filter((o) => o.value !== "none").map((o) => `<option value="${o.value}" ${o.value === m.headboard.spec.type ? "selected" : ""}>${esc(o.label)}</option>`).join("")}
+            </select>
+          </div>
+          ${headboardSubfieldsHtml(m, i)}
+        </div>
+      ` : ""}
+
+      ${renderSupportHtml(m, i)}
+
+      <h4 class="sub-h">Ящики под кроватью</h4>
+      ${renderDrawersHtml(m, i)}
+    </div>
+  `;
+}
+
+function headboardSubfieldsHtml(m, i) {
+  const spec = m.headboard.spec;
+  if (spec.type === "ldsp") {
+    return `<div class="field"><label>Декор</label><select onchange="st.modules[${i}].headboard.spec.decor=this.value">${ldspOptionsHtml(spec.decor)}</select></div>`;
+  }
+  if (FACADE_KIND_LABEL[spec.type]) {
+    return `
+      <div class="field"><label>Название декора</label><input value="${esc(spec.name || "")}" oninput="st.modules[${i}].headboard.spec.name=this.value"></div>
+      <div class="field"><label>Цена, ₽/м²</label><input type="number" min="0" step="1" value="${spec.priceM2 == null ? "" : spec.priceM2}" oninput="st.modules[${i}].headboard.spec.priceM2=this.value===''?null:parseFloat(this.value)"></div>
+    `;
+  }
+  if (spec.type === "aluglass") {
+    return `
+      <div class="field"><label>Профиль, ₽/м.п.</label><input type="number" min="0" step="1" value="${spec.profilePriceM == null ? "" : spec.profilePriceM}" oninput="st.modules[${i}].headboard.spec.profilePriceM=this.value===''?null:parseFloat(this.value)"></div>
+      <div class="field"><label>Стекло, ₽/м²</label><input type="number" min="0" step="1" value="${spec.glassPriceM2 == null ? "" : spec.glassPriceM2}" oninput="st.modules[${i}].headboard.spec.glassPriceM2=this.value===''?null:parseFloat(this.value)"></div>
+    `;
+  }
+  return "";
+}
+
+function renderMirrorCard(m, i) {
+  return `
+    <div class="module-card">
+      <div class="mhead">
+        <div class="mtitle">Модуль ${i + 1} — Зеркало</div>
+        <button class="btn-sm" onclick="removeModule(${i})">Удалить модуль</button>
+      </div>
+      <div class="grid">
+        <div class="field"><label>Высота, мм</label><input type="number" min="50" step="10" value="${m.h}" oninput="setMod(${i},'h',this.value,'int')"></div>
+        <div class="field"><label>Ширина, мм</label><input type="number" min="50" step="10" value="${m.w}" oninput="setMod(${i},'w',this.value,'int')"></div>
+        <div class="field"><label>Тип зеркала</label><input value="${esc(m.mirrorType)}" oninput="setMod(${i},'mirrorType',this.value)" placeholder="например, с фацетом"></div>
+        <div class="field"><label>Цена, ₽/м²</label><input type="number" min="0" step="1" value="${m.priceM2 == null ? "" : m.priceM2}" oninput="st.modules[${i}].priceM2=this.value===''?null:parseFloat(this.value)"></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderModules() {
+  $("modulesBox").innerHTML = st.modules.map((m, i) => {
+    if (m.kind === "desk") return renderDeskCard(m, i);
+    if (m.kind === "bed") return renderBedCard(m, i);
+    if (m.kind === "mirror") return renderMirrorCard(m, i);
+    return renderCabinetCard(m, i);
+  }).join("");
+}
+
+function renderCabinetCard(m, i) {
+  const isWallPanel = m.moduleType === WALL_PANEL_TYPE;
+  return `
+    <div class="module-card">
+      <div class="mhead">
+        <div class="mtitle">Модуль ${i + 1}</div>
+        ${st.modules.length > 1 ? `<button class="btn-sm" onclick="removeModule(${i})">Удалить модуль</button>` : ""}
+      </div>
+
+      <div class="module-layout">
+      <div class="module-fields">
+      <div class="grid">
+        <div class="field">
+          <label>Тип модуля</label>
+          <select onchange="setMod(${i},'moduleType',this.value)">
+            ${MODULE_TYPES.map((t) => `<option ${t === m.moduleType ? "selected" : ""}>${esc(t)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" ${isWallPanel ? "hidden" : ""}>
+          <label>Цвет корпуса</label>
+          <select onchange="setMod(${i},'corpusDecor',this.value)">${ldspOptionsHtml(m.corpusDecor)}</select>
+        </div>
+        <div class="field">
+          <label>Высота, мм</label>
+          <input type="number" min="100" step="10" value="${m.h}" oninput="setMod(${i},'h',this.value,'int')">
+        </div>
+        <div class="field">
+          <label>Ширина, мм</label>
+          <input type="number" min="100" step="10" value="${m.w}" oninput="setMod(${i},'w',this.value,'int')">
+        </div>
+        <div class="field" ${isWallPanel ? "hidden" : ""}>
+          <label>Глубина, мм</label>
+          <input type="number" min="100" step="10" value="${m.d}" oninput="setMod(${i},'d',this.value,'int')">
+        </div>
+        <div class="field" ${isWallPanel ? "hidden" : ""}>
+          <label>Полок, шт</label>
+          <input type="number" min="0" step="1" value="${m.shelves}" oninput="setMod(${i},'shelves',this.value,'int')">
+        </div>
+      </div>
+
+      <h4 class="sub-h">Наполнение</h4>
+
+      ${renderDrawersHtml(m, i)}
+
+      <div class="checkline">
+        <input type="checkbox" id="div_${i}" ${m.divider.enabled ? "checked" : ""} onchange="st.modules[${i}].divider.enabled=this.checked">
+        <label for="div_${i}">Перегородка</label>
+      </div>
+      ${m.divider.enabled ? `
+        <div class="sub-panel grid">
+          <div class="field"><label>Высота перегородки, мм</label><input type="number" min="0" step="10" value="${m.divider.height}" oninput="st.modules[${i}].divider.height=parseInt(this.value,10)||0"></div>
+          <div class="field"><label>Полок в перегородке</label><input type="number" min="0" step="1" value="${m.divider.shelves}" oninput="st.modules[${i}].divider.shelves=parseInt(this.value,10)||0"></div>
+        </div>` : ""}
+
+      <div class="checkline">
+        <input type="checkbox" id="rod_${i}" ${m.rod.enabled ? "checked" : ""} onchange="st.modules[${i}].rod.enabled=this.checked">
+        <label for="rod_${i}">Штанга</label>
+      </div>
+      ${m.rod.enabled ? `
+        <div class="sub-panel grid">
+          <div class="field">
+            <label>Форма</label>
+            <select onchange="st.modules[${i}].rod.shape=this.value">
+              <option value="oval" ${m.rod.shape === "oval" ? "selected" : ""}>Овальная</option>
+              <option value="round" ${m.rod.shape === "round" ? "selected" : ""}>Круглая</option>
+            </select>
+          </div>
+          <div class="field"><label>Цвет штанги</label><input value="${esc(m.rod.color)}" oninput="st.modules[${i}].rod.color=this.value" placeholder="например, хром"></div>
+        </div>` : ""}
+
+      <div class="checkline">
+        <input type="checkbox" id="lt_${i}" ${m.lighting.enabled ? "checked" : ""} onchange="st.modules[${i}].lighting.enabled=this.checked">
+        <label for="lt_${i}">Подсветка</label>
+      </div>
+      ${m.lighting.enabled ? `
+        <div class="sub-panel grid">
+          <div class="field">
+            <label>Расположение</label>
+            <select onchange="st.modules[${i}].lighting.placement=this.value">
+              ${LIGHTING_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === m.lighting.placement ? "selected" : ""}>${esc(o.label)}</option>`).join("")}
+            </select>
+          </div>
+        </div>` : ""}
+
+      <div class="toggle-row">
+        <label>Доп-наполнение</label>
+        <button class="btn-sm" onclick="addExtra(${i})">+ Добавить</button>
+      </div>
+      ${m.extras.map((ex, ei) => `
+        <div class="sub-panel grid">
+          <div class="field"><label>Название</label><input value="${esc(ex.name)}" oninput="st.modules[${i}].extras[${ei}].name=this.value"></div>
+          <div class="field"><label>Кол-во</label><input type="number" min="1" step="1" value="${ex.qty}" oninput="st.modules[${i}].extras[${ei}].qty=parseInt(this.value,10)||1"></div>
+          <div class="field"><label>Цена за единицу, ₽</label><input type="number" min="0" step="1" value="${ex.price == null ? "" : ex.price}" oninput="st.modules[${i}].extras[${ei}].price=this.value===''?null:parseFloat(this.value)"></div>
+          <div class="field" style="justify-content:flex-end"><button class="btn-sm" onclick="removeExtra(${i},${ei})">Удалить</button></div>
+        </div>
+      `).join("")}
+
+      <h4 class="sub-h">Фасады модуля</h4>
+      <div class="grid">
+        <div class="field">
+          <label>Тип фасада</label>
+          <select onchange="st.modules[${i}].facade.spec.type=this.value">
+            ${FACADE_TYPE_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === m.facade.spec.type ? "selected" : ""}>${esc(o.label)}</option>`).join("")}
+          </select>
+        </div>
+        ${moduleFacadeSubfieldsHtml(i)}
+        <div class="field">
+          <label>Количество фасадов, шт</label>
+          <input type="number" min="0" step="1" value="${m.facade.count}" oninput="st.modules[${i}].facade.count=parseInt(this.value,10)||0">
+        </div>
+        <div class="field">
+          <label>Петли</label>
+          <select onchange="st.modules[${i}].facade.hingeType=this.value">
+            <option value="regular" ${m.facade.hingeType === "regular" ? "selected" : ""}>Обычная</option>
+            <option value="reinforced" ${m.facade.hingeType === "reinforced" ? "selected" : ""}>Усиленная</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Тип открывания</label>
+          <select onchange="st.modules[${i}].facade.opening=this.value">
+            <option ${m.facade.opening === "Распашной" ? "selected" : ""}>Распашной</option>
+            <option ${m.facade.opening === "Подъёмный" ? "selected" : ""}>Подъёмный</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ручка фасада</label>
+          <select onchange="st.modules[${i}].facade.handle=this.value">
+            <option value="Ручка накладная" ${m.facade.handle === "Ручка накладная" ? "selected" : ""}>Накладная ручка</option>
+            <option value="Профиль push-to-open" ${m.facade.handle === "Профиль push-to-open" ? "selected" : ""}>Push-to-open</option>
+          </select>
+        </div>
+      </div>
+      <div class="checkline">
+        <input type="checkbox" id="sc_${i}" ${m.facade.softClose ? "checked" : ""} onchange="st.modules[${i}].facade.softClose=this.checked">
+        <label for="sc_${i}">С доводчиком</label>
+      </div>
+      </div>
+
+      <div class="module-schematic">
+        ${renderModuleSchematic(m)}
+        <div class="schem-caption">${isWallPanel ? `${m.w} × ${m.h} мм` : `${m.w} × ${m.h} × ${m.d} мм`}</div>
+        <div class="schem-legend">Примерная схема наполнения — не чертёж на изготовление</div>
+      </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ================= РАСЧЁТНОЕ ЯДРО ================= */
+function calcDetailing() {
+  const A = {}, B = {}, C = {};
+  const byModule = {};
+  const assumptions = [];
+  const aggregates = { ldsp: {}, kromka: {}, misc: {} };
+
+  /* origCode — исходный (неизменный) код декора, на который ссылаются
+     модули/фасады; row — уже разрешённые (с учётом swap/override) данные. */
+  function aggLdsp(origCode, row, areaM2) {
+    if (!row || !origCode) return;
+    aggregates.ldsp[origCode] = aggregates.ldsp[origCode] || { origDecor: origCode, decor: row.decor, label: `ЛДСП Egger ${row.decor} ${row.st} — ${row.name}`, areaM2: 0, priceM2: row.priceM2 };
+    aggregates.ldsp[origCode].areaM2 += areaM2;
+  }
+  /* Кромка — жёсткая ставка по материалу (не из прайса): 45 ₽/м.п. на
+     ЛДСП 16мм, 200 ₽/м.п. на АГТ. Для эмали/шпона/плёнки отдельной ставки
+     не задано — используется ставка ЛДСП как запасной вариант. */
+  function edgeRateInfo(kind) {
+    if (kind === "agt") return { label: EDGE_LABEL_AGT, baseRate: EDGE_RATE_AGT };
+    return { label: EDGE_LABEL_LDSP, baseRate: EDGE_RATE_LDSP };
+  }
+  function kromkaRate(kind) {
+    const info = edgeRateInfo(kind);
+    const ov = st.priceOverrides["kromka:" + info.label] || {};
+    return (ov.price !== undefined && ov.price !== null) ? ov.price : info.baseRate;
+  }
+  function aggKromka(kind, len) {
+    if (!(len > 0)) return;
+    const info = edgeRateInfo(kind);
+    aggregates.kromka[info.label] = aggregates.kromka[info.label] || { name: info.label, len: 0, price: info.baseRate };
+    aggregates.kromka[info.label].len += len;
+  }
+  function aggMisc(item, qty, category) {
+    aggregates.misc[item] = aggregates.misc[item] || { item, category, qty: 0, price: (miscById(item) || {}).price };
+    aggregates.misc[item].price = (miscById(item) || {}).price;
+    aggregates.misc[item].qty += qty;
+  }
+
+  st.modules.forEach((m, mi) => {
+    const modName = `Модуль ${mi + 1}`;
+    const rowsA = [], rowsB = [], rowsC = [];
+    let moduleCost = 0;
+
+    const corpusRow = decorById(m.corpusDecor);
+    const innerW = (m.w || 0) - 2 * PANEL_T;
+
+    function pushCorpus(part, len, wid, qty, edged, note) {
+      const rawArea = (len / 1000) * (wid / 1000) * qty;
+      const areaM2 = rawArea * MATERIAL_WASTE_COEF; // корпус всегда ЛДСП — коэффициент на раскрой ×1.2
+      const priceM2 = corpusRow ? corpusRow.priceM2 : null;
+      const plate = priceM2 == null ? null : areaM2 * priceM2;
+      const rawEdgeLen = edged ? (2 * (len + wid) * qty) / 1000 : 0;
+      const edgeLen = rawEdgeLen * MATERIAL_WASTE_COEF;
+      const edgeRate = kromkaRate("ldsp");
+      const edgeCost = edgeLen > 0 ? edgeLen * edgeRate : 0;
+      const total = (plate || 0) + edgeCost;
+      rowsA.push({ part, material: corpusRow ? `ЛДСП Egger ${corpusRow.decor} 16мм` : "—", len, wid, qty, areaM2, priceM2, plate, edgeLen, edgeCost, total, note: note || "" });
+      if (corpusRow) aggLdsp(m.corpusDecor, corpusRow, areaM2);
+      if (edgeLen > 0) aggKromka("ldsp", edgeLen);
+      moduleCost += total;
+    }
+    function pushBackPanel(len, wid, qty) {
+      const backRow = miscById("Задняя стенка ХДФ");
+      const areaM2 = (len / 1000) * (wid / 1000) * qty;
+      const price = backRow ? backRow.price : null;
+      const plate = price == null ? null : areaM2 * price;
+      rowsA.push({ part: "Задняя стенка", material: "ХДФ 3мм", len, wid, qty, areaM2, priceM2: price, plate, edgeLen: 0, edgeCost: 0, total: plate || 0, note: "" });
+      if (backRow) aggMisc("Задняя стенка ХДФ", areaM2, "Прочее");
+      moduleCost += plate || 0;
+    }
+    function pushFacadePanel(type, h, w, qty, opening, spec) {
+      const info = facadeMaterialInfo(spec);
+      const rawAreaM2 = (h / 1000) * (w / 1000) * qty;
+      const weight = (h / 1000) * (w / 1000) * (PANEL_T / 1000) * DENSITY_LDSP;
+      let areaM2 = rawAreaM2, priceM2 = null, plate = null, materialLabel = "—", edgeLen = 0, edgeCost = 0;
+      if (info) {
+        materialLabel = info.label;
+        if (info.mode === "m2") {
+          areaM2 = info.applyWaste ? rawAreaM2 * MATERIAL_WASTE_COEF : rawAreaM2;
+          priceM2 = info.priceM2;
+          plate = (priceM2 == null) ? null : areaM2 * priceM2;
+          if (info.ldspRow) aggLdsp(info.origDecor, info.ldspRow, areaM2);
+          const rawEdgeLen = (2 * (h + w) * qty) / 1000;
+          edgeLen = rawEdgeLen * MATERIAL_WASTE_COEF; // кромка всегда с коэффициентом ×1.2
+          edgeCost = edgeLen * kromkaRate(info.edgeKind);
+          if (edgeLen > 0) aggKromka(info.edgeKind, edgeLen);
+        } else if (info.mode === "aluglass") {
+          const perimM = (2 * (h + w) * qty) / 1000;
+          const profileCost = info.profilePriceM != null ? perimM * info.profilePriceM : null;
+          const glassCost = info.glassPriceM2 != null ? areaM2 * info.glassPriceM2 : null;
+          plate = (profileCost == null && glassCost == null) ? null : (profileCost || 0) + (glassCost || 0);
+          materialLabel = `Алюминиевый профиль (${info.profilePriceM != null ? fmt2(info.profilePriceM) + " ₽/м.п." : "—"}) + стекло (${info.glassPriceM2 != null ? fmt2(info.glassPriceM2) + " ₽/м²" : "—"})`;
+        }
+      }
+      const heavy = weight > HEAVY_KG;
+      const total = (plate || 0) + edgeCost;
+      rowsB.push({ no: rowsB.length + 1, type, material: materialLabel, h, w, qty, areaM2, priceM2, plate, edgeLen, edgeCost, weight, heavy, opening, total });
+      moduleCost += total;
+      return { weight, heavy };
+    }
+    function pushHw(cat, item, qty, attached, params) {
+      const p = miscById(item);
+      const price = p ? p.price : null;
+      const total = price != null ? price * qty : 0;
+      rowsC.push({ category: cat, model: item, qty, attached: attached || "", params: params || "", price, total });
+      aggMisc(item, qty, cat);
+      if (!p) assumptions.push(`Позиция «${item}» отсутствует в прайсе — цена не подставлена, строка без стоимости.`);
+      moduleCost += total;
+    }
+    /* Ящики стола/кровати — тот же короб/фасад/направляющие, что у шкафа,
+       плюс накладная ручка (у стола/кровати нет facade-мини-блока с
+       выбором ручки, как у шкафа, поэтому ручка фиксированная). */
+    function pushDrawerSet(drawers) {
+      drawers.forEach((dr, di) => {
+        pushCorpus(`Ящик ${di + 1} — бок`, dr.height, dr.depth, 2, true);
+        pushCorpus(`Ящик ${di + 1} — перед`, dr.height, dr.width, 1, true);
+        pushCorpus(`Ящик ${di + 1} — зад`, dr.height, dr.width, 1, true);
+        pushCorpus(`Ящик ${di + 1} — дно`, dr.width, dr.depth, 1, false);
+        const drawerSpec = { type: "ldsp", decor: dr.facadeColor || m.corpusDecor };
+        pushFacadePanel(`Фасад ящика ${di + 1}`, dr.facadeHeight, dr.width, 1, "Выдвижной", drawerSpec);
+        const typeInfo = DRAWER_TYPES.find((t) => t.value === dr.type) || DRAWER_TYPES[0];
+        pushHw("направляющие", typeInfo.priceItem, 1, `Ящик ${di + 1}`, `короб ${dr.height}×${dr.width}×${dr.depth} мм`);
+      });
+      if (drawers.length) pushHw("открывание", "Ручка накладная", drawers.length, "Ящики", "");
+    }
+    /* Опора столешницы стола / рамы кровати — общий саб-компонент. */
+    function pushSupport(support, labelSuffix) {
+      if (!support) return;
+      if (support.type === "ldsp") {
+        const s = support.ldsp || {};
+        pushCorpus(`Опора ${labelSuffix}`, s.height || 0, s.depth || 0, 2, true);
+      } else {
+        const s = support.metal || {};
+        const label = `Металлопрофиль ${s.profileD || 0}×${s.profileW || 0}×${s.profileH || 0} мм${s.color ? ", цвет " + s.color : ""}`;
+        const qty = s.lengthM || 0;
+        const price = s.priceM;
+        const total = price != null ? price * qty : 0;
+        rowsC.push({ category: "опора", model: label, qty, attached: `Опора ${labelSuffix}`, params: "", price, total });
+        moduleCost += total;
+      }
+    }
+
+    if (m.kind === "desk") {
+      const layers = m.thickness === 32 ? 2 : 1;
+      pushCorpus("Столешница", m.length, m.width, layers, true);
+      pushSupport(m.support, "стола");
+      pushDrawerSet(m.drawers);
+      rowsC.push({ category: "крепёж", model: "Крепёжная фурнитура", qty: 1, attached: modName, params: "фиксированная стоимость на модуль, без построчной детализации", price: HARDWARE_FLAT_FEE, total: HARDWARE_FLAT_FEE });
+      moduleCost += HARDWARE_FLAT_FEE;
+
+    } else if (m.kind === "bed") {
+      const railH = 300;
+      pushCorpus("Боковина рамы", m.length, railH, 2, true);
+      pushCorpus("Царга (изножье)", m.width, railH, 1, true);
+      pushCorpus("Царга (у изголовья)", m.width, railH, 1, true);
+      if (m.headboard && m.headboard.enabled) {
+        pushFacadePanel("Изголовье", m.headboardHeight, m.width, 1, "—", m.headboard.spec);
+      }
+      pushSupport(m.support, "кровати");
+      pushDrawerSet(m.drawers);
+      rowsC.push({ category: "крепёж", model: "Крепёжная фурнитура", qty: 1, attached: modName, params: "фиксированная стоимость на модуль, без построчной детализации", price: HARDWARE_FLAT_FEE, total: HARDWARE_FLAT_FEE });
+      moduleCost += HARDWARE_FLAT_FEE;
+
+    } else if (m.kind === "mirror") {
+      const areaM2 = (m.h / 1000) * (m.w / 1000);
+      const priceM2 = m.priceM2;
+      const plate = priceM2 != null ? areaM2 * priceM2 : null;
+      rowsB.push({ no: 1, type: "Зеркало", material: m.mirrorType || "Зеркало", h: m.h, w: m.w, qty: 1, areaM2, priceM2, plate, edgeLen: 0, edgeCost: 0, weight: 0, heavy: false, opening: "—", total: plate || 0 });
+      moduleCost += plate || 0;
+
+    } else {
+      /* ---- шкаф: обычный корпус, либо декоративная стеновая панель ---- */
+      const isWallPanel = m.moduleType === WALL_PANEL_TYPE;
+
+      if (isWallPanel) {
+        /* ---- Блок 2: одна панель на весь модуль, без корпуса и дверей ---- */
+        pushFacadePanel("Стеновая панель", m.h, m.w, 1, "—", m.facade.spec);
+      } else {
+        /* ---- Блок 1: корпус ---- */
+        pushCorpus("Боковина", m.h, m.d, 2, true);
+        pushCorpus("Дно", innerW, m.d, 1, true);
+        pushCorpus("Крыша", innerW, m.d, 1, true);
+        if (m.shelves > 0) {
+          const shelfD = m.d - SHELF_BACK;
+          const reinforced = innerW > 800;
+          pushCorpus("Полка", innerW, shelfD, m.shelves, true, reinforced ? "пролёт > 800 мм — требует усиления" : "");
+          if (reinforced) assumptions.push(`${modName}: пролёт полки ${innerW} мм превышает 800 мм — заложено усиление (доп. стойка/утолщение), уточните конструктив.`);
+        }
+        pushBackPanel(m.h, m.w, 1);
+
+        if (m.divider && m.divider.enabled) {
+          pushCorpus("Перегородка", m.h, m.d, 1, true);
+          if (m.divider.shelves > 0) pushCorpus("Полка (в перегородке)", innerW, m.d - SHELF_BACK, m.divider.shelves, true);
+          assumptions.push(`${modName}: полки в перегородке приняты той же ширины, что и обычные полки модуля — точная геометрия зон по обе стороны перегородки не считается.`);
+        }
+      }
+
+      /* ---- Блок 1: корпус — короб ящика (2 бока, перед, зад, дно из ЛДСП) ---- */
+      m.drawers.forEach((dr, di) => {
+        pushCorpus(`Ящик ${di + 1} — бок`, dr.height, dr.depth, 2, true);
+        pushCorpus(`Ящик ${di + 1} — перед`, dr.height, dr.width, 1, true);
+        pushCorpus(`Ящик ${di + 1} — зад`, dr.height, dr.width, 1, true);
+        pushCorpus(`Ящик ${di + 1} — дно`, dr.width, dr.depth, 1, false);
+      });
+
+      /* ---- Блок 2: фасады — ящики ---- */
+      m.drawers.forEach((dr, di) => {
+        const drawerSpec = { type: "ldsp", decor: dr.facadeColor || m.corpusDecor };
+        pushFacadePanel(`Фасад ящика ${di + 1}`, dr.facadeHeight, dr.width, 1, "Выдвижной", drawerSpec);
+        const typeInfo = DRAWER_TYPES.find((t) => t.value === dr.type) || DRAWER_TYPES[0];
+        pushHw("направляющие", typeInfo.priceItem, 1, `Ящик ${di + 1}`, `короб ${dr.height}×${dr.width}×${dr.depth} мм`);
+      });
+
+      /* ---- Блок 2: фасады — двери (не для стеновой панели) ---- */
+      let doorResults = [];
+      if (!isWallPanel && m.facade.spec.type !== "none" && m.facade.count > 0) {
+        const doorH = m.h;
+        const doorW = Math.max(50, Math.floor((m.w - (m.facade.count + 1) * GAP_FACADE) / m.facade.count));
+        for (let k = 0; k < m.facade.count; k++) {
+          doorResults.push(pushFacadePanel("Дверь", doorH, doorW, 1, m.facade.opening, m.facade.spec));
+        }
+        let hinges = 0, anyHeavy = false;
+        doorResults.forEach((r) => { hinges += hingeCount(doorH, r.weight); if (r.heavy) anyHeavy = true; });
+        const hingeItem = (m.facade.hingeType === "reinforced" || anyHeavy) ? "Петля Blum CLIP top усиленная" : "Петля Blum CLIP top";
+        pushHw("петли", hingeItem, hinges, `Двери модуля (${m.facade.count} шт)`, `по высоте фасада ${doorH} мм`);
+        if (m.facade.softClose) pushHw("доводчики", "Доводчик Blum BLUMOTION", m.facade.count, "Двери модуля", "");
+      }
+
+      /* ---- Блок 3: фурнитура — ручки ---- */
+      const handleQty = (!isWallPanel && m.facade.spec.type !== "none" ? m.facade.count : 0) + m.drawers.length;
+      if (handleQty > 0) pushHw("открывание", m.facade.handle, handleQty, "Фасады и ящики", "");
+
+      /* ---- Блок 3: фурнитура — штанга ---- */
+      if (m.rod && m.rod.enabled) {
+        const item = m.rod.shape === "round" ? "Штанга круглая (плейсхолдер)" : "Штанга овальная (плейсхолдер)";
+        const lenM = Math.round((innerW / 1000) * 10) / 10;
+        pushHw("штанга", item, lenM, modName, m.rod.color ? `цвет: ${m.rod.color}` : "");
+      }
+
+      /* ---- Блок 3: фурнитура — подсветка ---- */
+      if (m.lighting && m.lighting.enabled) {
+        const lenM = Math.round((lightingLengthMm(m.lighting.placement, m, innerW) / 1000) * 10) / 10;
+        pushHw("подсветка", "LED-лента + блок питания", lenM, modName, lightingPlacementLabel(m.lighting.placement));
+        pushHw("подсветка", "Сенсорный выключатель", 1, modName, "");
+      }
+
+      /* ---- Блок 3: фурнитура — доп-наполнение ---- */
+      m.extras.forEach((ex) => {
+        if (!ex.name) return;
+        const qty = ex.qty || 1;
+        const price = ex.price;
+        const total = price != null ? price * qty : 0;
+        rowsC.push({ category: "доп. наполнение", model: ex.name, qty, attached: modName, params: "", price, total });
+        moduleCost += total;
+      });
+
+      /* ---- Блок 3: фурнитура — крепёж (фиксированная сумма) ---- */
+      rowsC.push({ category: "крепёж", model: "Крепёжная фурнитура", qty: 1, attached: modName, params: "фиксированная стоимость на модуль, без построчной детализации", price: HARDWARE_FLAT_FEE, total: HARDWARE_FLAT_FEE });
+      moduleCost += HARDWARE_FLAT_FEE;
+    }
+
+    A[modName] = rowsA; B[modName] = rowsB; C[modName] = rowsC;
+    byModule[modName] = moduleCost;
+  });
+
+  const cost = Object.values(byModule).reduce((s, v) => s + v, 0);
+
+  /* ---- Допущения (не выводятся на экран — только в CSV) ---- */
+  assumptions.unshift(
+    `Кромка на всех деталях корпуса и фасадах (включая короб и фасад ящика) считается сплошной по всему периметру каждой панели: ${EDGE_RATE_LDSP} ₽/м.п. на ЛДСП 16мм, ${EDGE_RATE_AGT} ₽/м.п. на АГТ; для эмали/шпона/плёнки отдельная ставка не задана — используется ставка ЛДСП. Задняя стенка (ХДФ) не кромкуется. Алюминиевый фасад со стеклом кромкой не считается — контур уже даёт профиль.`,
+    `Площадь материала (м²) и длина кромки (м.п.) для ЛДСП, АГТ и кромки посчитаны с коэффициентом на раскрой/отход ×${MATERIAL_WASTE_COEF}.`,
+    `Толщина ЛДСП корпуса и фасадов — ${PANEL_T} мм, задней стенки — ${BACK_T} мм ХДФ.`,
+    `Цоколь в этой версии калькулятора не моделируется (поле «Высота цоколя» убрано из опроса).`,
+    `Количество петель на фасад: высота до 1000 мм — 2, свыше 1000 — 3, свыше 1500 — 4, свыше 2000 — 5; фасад тяжелее ${HEAVY_KG} кг получает дополнительную петлю и усиленный тип.`,
+    `Вес фасада рассчитан по плотности ЛДСП ${DENSITY_LDSP} кг/м³ независимо от фактического материала.`,
+    `Дверные фасады считаются на полную высоту модуля; высота фасада ящика задаётся отдельно по каждому ящику и не вычитается из высоты дверей — точная компоновка по высоте уточняется на этапе конструктива.`,
+    `Короб ящика — 2 бока, перед, зад и дно из ЛДСП цвета корпуса модуля (дно без кромки); глубина по умолчанию — глубина модуля минус 100 мм, округлено вниз до кратности 50 мм; ширина по умолчанию — внутренняя ширина модуля минус 20 мм.`,
+    `Длина подсветки считается геометрически по выбранному варианту размещения (высота модуля — для боковин, внутренняя ширина — для крыши/полок), а не по факту замера.`,
+    `Крепёжная фурнитура заложена фиксированной суммой ${HARDWARE_FLAT_FEE} ₽ на модуль без построчной детализации по эксцентрикам/шкантам.`
+  );
+  if (!$("risks").value.trim()) {
+    assumptions.push("Технологические риски (неровности стен/пола, обход коммуникаций, занос модулей) не указаны — требуется контрольный обмер на объекте.");
+  }
+  const placeholderMisc = new Set();
+  Object.values(aggregates.misc).forEach((r) => { if (/плейсхолдер/i.test(r.item)) placeholderMisc.add(r.item); });
+  function checkFacadeSpecPrice(spec, label) {
+    if (!spec) return;
+    if (FACADE_KIND_LABEL[spec.type] && spec.priceM2 == null) {
+      assumptions.push(`${label} с фасадом «${FACADE_KIND_LABEL[spec.type]}» — цена за м² не указана, стоимость не подставлена. Заполните поле «Цена, ₽/м²».`);
+    }
+    if (spec.type === "aluglass" && (spec.profilePriceM == null || spec.glassPriceM2 == null)) {
+      assumptions.push(`${label} с алюминиевым фасадом со стеклом — не заполнена цена профиля и/или стекла, стоимость не подставлена.`);
+    }
+  }
+  st.modules.forEach((m) => {
+    if (m.kind === "bed") { if (m.headboard && m.headboard.enabled) checkFacadeSpecPrice(m.headboard.spec, "Изголовье кровати"); return; }
+    if (m.kind === "desk" || m.kind === "mirror") return;
+    checkFacadeSpecPrice(m.facade.spec, "Модуль");
+  });
+  if (placeholderMisc.size) {
+    assumptions.push("Часть позиций взята из плейсхолдер-прайса, цены предварительные: " + [...placeholderMisc].join(", "));
+  }
+  assumptions.push("Цены ЛДСП Egger — по прайсу поставщика от 01/04/26. Ставки кромки (45 ₽/м.п. ЛДСП, 200 ₽/м.п. АГТ) заданы вручную, не из прайса. Остальная фурнитура, АГТ/эмаль/шпон/плёнка и работы — плейсхолдер либо введены вручную, требуют замены на актуальный прайс компании.");
+
+  st.detail = { A, B, C, byModule, cost, assumptions, aggregates };
+  return st.detail;
+}
+
+/* ================= ОТРИСОВКА ДЕТАЛИРОВКИ ================= */
+function moduleKindLabel(m) {
+  if (m.kind === "desk") return "Стол";
+  if (m.kind === "bed") return "Кровать";
+  if (m.kind === "mirror") return "Зеркало";
+  return m.moduleType;
+}
+
+function renderDetailing() {
+  const d = calcDetailing();
+
+  $("detailingBox").innerHTML = Object.keys(d.byModule).map((modName, idx) => {
+    const m = st.modules[idx];
+    const rowsA = d.A[modName], rowsB = d.B[modName], rowsC = d.C[modName];
+    return `
+    <div class="module-detail">
+      <h3 class="mod-title">${esc(modName)} — ${esc(moduleKindLabel(m))}</h3>
+
+      <h4 class="blk-big">1 Корпус</h4>
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>Деталь</th><th>Материал</th><th class="num">Д,мм</th><th class="num">Ш,мм</th>
+          <th class="num">Кол-во</th><th class="num">м²</th><th class="num">Цена/м²</th><th class="num">Плита,₽</th>
+          <th class="num">Кромка,м.п.</th><th class="num">Кромка,₽</th><th class="num">Итого,₽</th><th>Примечание</th>
+        </tr></thead>
+        <tbody>${rowsA.map((r) => `<tr>
+          <td>${esc(r.part)}</td><td>${esc(r.material)}</td>
+          <td class="num">${fmt(r.len)}</td><td class="num">${fmt(r.wid)}</td><td class="num">${r.qty}</td>
+          <td class="num">${fmt2(r.areaM2)}</td>
+          <td class="num">${r.priceM2 == null ? '<span class="dash">—</span>' : fmt2(r.priceM2)}</td>
+          <td class="num">${r.plate == null ? '<span class="dash">—</span>' : fmt2(r.plate)}</td>
+          <td class="num">${r.edgeLen ? fmt2(r.edgeLen) : ""}</td><td class="num">${r.edgeCost ? fmt2(r.edgeCost) : ""}</td>
+          <td class="num">${fmt2(r.total)}</td>
+          <td>${r.note ? `<span class="flag">${esc(r.note)}</span>` : ""}</td>
+        </tr>`).join("")}
+        <tr class="total"><td colspan="10">Итого Корпус</td><td class="num">${fmt2(rowsA.reduce((s, r) => s + r.total, 0))}</td><td></td></tr>
+        </tbody>
+      </table></div>
+
+      <h4 class="blk-big">2 Фасады</h4>
+      ${rowsB.length ? `<div class="tablewrap"><table>
+        <thead><tr>
+          <th>№</th><th>Тип</th><th>Материал</th><th class="num">В,мм</th><th class="num">Ш,мм</th>
+          <th class="num">Кол-во</th><th class="num">м²</th><th class="num">Цена/м²</th><th class="num">Плита,₽</th>
+          <th class="num">Кромка,м.п.</th><th class="num">Кромка,₽</th><th class="num">Вес,кг</th><th>Открывание</th><th class="num">Итого,₽</th>
+        </tr></thead>
+        <tbody>${rowsB.map((r) => `<tr>
+          <td>${r.no}</td><td>${esc(r.type)}</td><td>${esc(r.material)}</td>
+          <td class="num">${fmt(r.h)}</td><td class="num">${fmt(r.w)}</td><td class="num">${r.qty}</td>
+          <td class="num">${fmt2(r.areaM2)}</td>
+          <td class="num">${r.priceM2 == null ? '<span class="dash">—</span>' : fmt2(r.priceM2)}</td>
+          <td class="num">${r.plate == null ? '<span class="dash">—</span>' : fmt2(r.plate)}</td>
+          <td class="num">${r.edgeLen ? fmt2(r.edgeLen) : ""}</td><td class="num">${r.edgeCost ? fmt2(r.edgeCost) : ""}</td>
+          <td class="num">${fmt2(r.weight)}${r.heavy ? ' <span class="flag">усил.</span>' : ""}</td>
+          <td>${esc(r.opening)}</td><td class="num">${fmt2(r.total)}</td>
+        </tr>`).join("")}
+        <tr class="total"><td colspan="13">Итого Фасады</td><td class="num">${fmt2(rowsB.reduce((s, r) => s + r.total, 0))}</td></tr>
+        </tbody>
+      </table></div>` : `<p class="hint">Фасадов нет — модуль открытого типа.</p>`}
+
+      <h4 class="blk-big">3 Фурнитура</h4>
+      <div class="tablewrap"><table>
+        <thead><tr>
+          <th>Категория</th><th>Наименование</th><th>Привязка</th><th class="num">Кол-во</th>
+          <th class="num">Цена,₽</th><th class="num">Сумма,₽</th>
+        </tr></thead>
+        <tbody>${rowsC.map((r) => `<tr>
+          <td>${esc(r.category)}</td><td>${esc(r.model)}</td><td>${esc(r.attached)}</td>
+          <td class="num">${r.qty}</td>
+          <td class="num">${r.price == null ? '<span class="dash">—</span>' : fmt2(r.price)}</td>
+          <td class="num">${r.price == null ? '<span class="dash">—</span>' : fmt2(r.total)}</td>
+        </tr>`).join("")}
+        <tr class="total"><td colspan="5">Итого Фурнитура</td><td class="num">${fmt2(rowsC.reduce((s, r) => s + r.total, 0))}</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="module-total">Итого по модулю: ${fmt(d.byModule[modName])} ₽</div>
+    </div>`;
+  }).join("");
+
+  $("tblSum").innerHTML = `
+    <thead><tr><th>Модуль</th><th class="num">Себестоимость, ₽</th>
+      <th class="num">×2.8, ₽</th><th class="num">×3.0, ₽</th></tr></thead>
+    <tbody>
+      ${Object.entries(d.byModule).map(([m, v]) => `<tr>
+        <td>${esc(m)}</td><td class="num">${fmt2(v)}</td>
+        <td class="num">${fmt2(v * 2.8)}</td><td class="num">${fmt2(v * 3.0)}</td></tr>`).join("")}
+      <tr class="total"><td>ИТОГО ПО ПРОЕКТУ</td>
+        <td class="num">${fmt2(d.cost)}</td>
+        <td class="num">${fmt2(d.cost * 2.8)}</td>
+        <td class="num">${fmt2(d.cost * 3.0)}</td></tr>
+    </tbody>`;
+
+  renderMaterialsAgg(d);
+
+  $("totalTiles").innerHTML = `
+    <div class="tile"><div class="lbl">Себестоимость</div><div class="val">${fmt(d.cost)} ₽</div></div>
+    <div class="tile hl"><div class="lbl">Вариант ×2.8</div><div class="val">${fmt(d.cost * 2.8)} ₽</div></div>
+    <div class="tile hl"><div class="lbl">Вариант ×3.0</div><div class="val">${fmt(d.cost * 3.0)} ₽</div></div>`;
+}
+
+function miscOptionsHtml(selected) {
+  const groups = {};
+  MISC.forEach((r) => { (groups[r.category] = groups[r.category] || []).push(r); });
+  return Object.keys(groups).sort().map((g) => {
+    const inner = groups[g]
+      .map((r) => `<option value="${esc(r.item)}" ${r.item === selected ? "selected" : ""}>${esc(r.item)} (${fmt2(r.price)} ₽/${esc(r.unit)})</option>`)
+      .join("");
+    return `<optgroup label="${esc(g)}">${inner}</optgroup>`;
+  }).join("");
+}
+
+/* Наименование в этой таблице — выбор из прайса (ЛДСП/фурнитура), цена
+   подтягивается автоматически и её можно дополнительно поправить. Для
+   кромки (не из прайса, ставка задана вручную) — обычные текстовые поля. */
+function renderMaterialsAgg(d) {
+  const rows = [];
+  Object.values(d.aggregates.ldsp).forEach((r) => rows.push({ key: "ldsp:" + r.origDecor, kind: "ldsp", current: r.origDecor, category: "ЛДСП", name: r.label, qtyLabel: fmt2(r.areaM2) + " м²", qtyNum: r.areaM2, price: r.priceM2 }));
+  Object.values(d.aggregates.kromka).forEach((r) => rows.push({ key: "kromka:" + r.name, kind: "flat", category: "Кромка", name: r.name, qtyLabel: fmt2(r.len) + " м.п.", qtyNum: r.len, price: r.price }));
+  Object.values(d.aggregates.misc).forEach((r) => rows.push({ key: "misc:" + r.item, kind: "misc", current: r.item, category: r.category, name: r.item, qtyLabel: String(r.qty), qtyNum: r.qty, price: r.price }));
+
+  $("tblMaterials").innerHTML = `
+    <thead><tr><th>Категория</th><th>Наименование</th><th class="num">Кол-во</th><th class="num">Цена, ₽</th><th class="num">Сумма, ₽</th></tr></thead>
+    <tbody>${rows.map((r) => {
+      const ov = st.priceOverrides[r.key] || {};
+      const priceVal = (ov.price !== undefined && ov.price !== null) ? ov.price : r.price;
+      const sum = priceVal != null ? priceVal * r.qtyNum : null;
+      let nameCell;
+      if (r.kind === "ldsp") {
+        nameCell = `<select onchange="setPriceOverride('${r.key}','swapDecor',this.value)">${ldspOptionsHtml(ov.swapDecor || r.current)}</select>`;
+      } else if (r.kind === "misc") {
+        nameCell = `<select onchange="setPriceOverride('${r.key}','swapItem',this.value)">${miscOptionsHtml(ov.swapItem || r.current)}</select>`;
+      } else {
+        const nameVal = ov.name != null ? ov.name : r.name;
+        nameCell = `<input value="${esc(nameVal)}" onchange="setPriceOverride('${r.key}','name',this.value)">`;
+      }
+      return `<tr>
+        <td>${esc(r.category)}</td>
+        <td>${nameCell}</td>
+        <td class="num">${esc(r.qtyLabel)}</td>
+        <td class="num"><input type="number" min="0" step="1" value="${priceVal == null ? "" : priceVal}" onchange="setPriceOverride('${r.key}','price',this.value)"></td>
+        <td class="num">${sum == null ? '<span class="dash">—</span>' : fmt2(sum)}</td>
+      </tr>`;
+    }).join("")}</tbody>`;
+}
+
+function setPriceOverride(key, field, val) {
+  st.priceOverrides[key] = st.priceOverrides[key] || {};
+  if (field === "price") {
+    const n = parseFloat(val);
+    st.priceOverrides[key].price = val === "" ? null : (isNaN(n) ? null : n);
+  } else if (field === "swapDecor" || field === "swapItem") {
+    st.priceOverrides[key] = { [field]: val }; // свап сбрасывает ручные name/price — подтягиваем цену выбранной позиции заново
+  } else {
+    st.priceOverrides[key].name = val;
+  }
+  renderDetailing();
+}
+
+/* ================= ВЫГРУЗКА CSV ================= */
+function sanitizeFilename(s) {
+  return (s || "").replace(/[^\wа-яА-Я -]/g, "").trim();
+}
+
+/* window.claude.downloads.save() — официальный канал сохранения файла из
+   Artifact-страницы: работает независимо от того, разрешает ли песочница
+   iframe нативное браузерное скачивание (blob + <a download>), потому что
+   идёт через сам Claude, а не напрямую через браузер. См. скилл
+   artifact-capabilities. Расширение .pdf НЕ входит в допустимый список,
+   поэтому КП отдаётся как .html (печатается в PDF браузером после
+   открытия), а не как .pdf. */
+async function claudeDownloadSave(filename, data) {
+  if (!window.claude || !window.claude.downloads) {
+    return { ok: false, code: "no_api" };
+  }
+  try {
+    await window.claude.downloads.save({ filename, data });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, code: (e && e.code) || "unavailable", message: (e && e.message) || String(e) };
+  }
+}
+
+/* Запасной путь для случаев, когда window.claude.downloads недоступен
+   (например, локальный просмотр вне claude.ai) — старое браузерное
+   скачивание через Blob. Может не сработать в незнакомой песочнице, но
+   не хуже, чем ничего. */
+function downloadBlobAs(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
+}
+
+function buildDetailingCsvText() {
+  const d = st.detail || calcDetailing();
+  const rows = [];
+  const q = (v) => {
+    const s = (v === null || v === undefined) ? "" : String(v);
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const line = (arr) => rows.push(arr.map(q).join(";"));
+  const money = (n) => (n === null || n === undefined || isNaN(n)) ? "" : n.toFixed(2).replace(".", ",");
+
+  line([`Деталировка: ${$("projectTitle").value || "без названия"}`]);
+  line([`Клиент: ${$("clientName").value}`, `Дата: ${$("projectDate").value}`]);
+  line([]);
+
+  Object.keys(d.byModule).forEach((modName, idx) => {
+    const m = st.modules[idx];
+    line([`${modName} — ${moduleKindLabel(m)}`]);
+    line([]);
+    line(["1 КОРПУС"]);
+    line(["Деталь", "Материал", "Длина мм", "Ширина мм", "Кол-во", "м²", "Цена за м²", "Сумма плиты", "Кромка м.п.", "Сумма кромки", "Итого", "Примечание"]);
+    d.A[modName].forEach((r) => line([r.part, r.material, r.len, r.wid, r.qty, money(r.areaM2), money(r.priceM2), money(r.plate), money(r.edgeLen), money(r.edgeCost), money(r.total), r.note]));
+    line([]);
+
+    line(["2 ФАСАДЫ"]);
+    if (d.B[modName].length) {
+      line(["№", "Тип", "Материал", "Высота мм", "Ширина мм", "Кол-во", "м²", "Цена за м²", "Сумма плиты", "Кромка м.п.", "Сумма кромки", "Вес кг", "Открывание", "Итого"]);
+      d.B[modName].forEach((r) => line([r.no, r.type, r.material, r.h, r.w, r.qty, money(r.areaM2), money(r.priceM2), money(r.plate), money(r.edgeLen), money(r.edgeCost), money(r.weight), r.opening, money(r.total)]));
+    } else {
+      line(["Фасадов нет"]);
+    }
+    line([]);
+
+    line(["3 ФУРНИТУРА"]);
+    line(["Категория", "Наименование", "Привязка", "Кол-во", "Цена", "Сумма"]);
+    d.C[modName].forEach((r) => line([r.category, r.model, r.attached, r.qty, money(r.price), money(r.total)]));
+    line(["Итого по модулю", money(d.byModule[modName])]);
+    line([]);
+  });
+
+  line(["СВОД ПО МОДУЛЯМ"]);
+  line(["Модуль", "Себестоимость", "×2.8", "×3.0"]);
+  Object.entries(d.byModule).forEach(([m, v]) => line([m, money(v), money(v * 2.8), money(v * 3.0)]));
+  line(["ИТОГО ПО ПРОЕКТУ", money(d.cost), money(d.cost * 2.8), money(d.cost * 3.0)]);
+  line([]);
+
+  line(["ИТОГО ПО МАТЕРИАЛАМ И ФУРНИТУРЕ"]);
+  line(["Категория", "Наименование", "Кол-во", "Цена", "Сумма"]);
+  Object.values(d.aggregates.ldsp).forEach((r) => {
+    const ov = st.priceOverrides["ldsp:" + r.origDecor] || {};
+    const price = (ov.price !== undefined && ov.price !== null) ? ov.price : r.priceM2;
+    line(["ЛДСП", ov.name || r.label, fmt2(r.areaM2) + " м²", money(price), money(price != null ? price * r.areaM2 : null)]);
+  });
+  Object.values(d.aggregates.kromka).forEach((r) => {
+    const ov = st.priceOverrides["kromka:" + r.name] || {};
+    const price = (ov.price !== undefined && ov.price !== null) ? ov.price : r.price;
+    line(["Кромка", ov.name || r.name, fmt2(r.len) + " м.п.", money(price), money(price != null ? price * r.len : null)]);
+  });
+  Object.values(d.aggregates.misc).forEach((r) => {
+    const ov = st.priceOverrides["misc:" + r.item] || {};
+    const price = (ov.price !== undefined && ov.price !== null) ? ov.price : r.price;
+    line([r.category, ov.name || r.item, r.qty, money(price), money(price != null ? price * r.qty : null)]);
+  });
+  line([]);
+
+  line(["ДОПУЩЕНИЯ"]);
+  d.assumptions.forEach((a) => line([a]));
+
+  return "﻿" + rows.join("\r\n"); // BOM — чтобы Excel сам распознал UTF-8
+}
+
+async function downloadCSV() {
+  const btn = $("csvDownloadBtn");
+  const hint = $("csvDlHint");
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Готовим CSV…";
+  hint.textContent = "";
+
+  try {
+    const csvText = buildDetailingCsvText();
+    const filename = `detailing_${sanitizeFilename($("projectTitle").value) || "project"}.csv`;
+
+    let res = await claudeDownloadSave(filename, csvText);
+    if (res.ok) { hint.textContent = "Готово: файл деталировки сохранён."; return; }
+    if (res.code === "declined") return; // пользователь сам отказался — молчим
+
+    if (res.code === "extension_not_enabled") {
+      const res2 = await claudeDownloadSave(filename.replace(/\.csv$/, ".txt"), csvText);
+      if (res2.ok) {
+        hint.textContent = "CSV сейчас недоступен — сохранён как .txt (те же данные, при необходимости переименуйте расширение в .csv).";
+        return;
+      }
+      res = res2;
+    }
+
+    if (res.code === "no_api") {
+      downloadBlobAs(new Blob([csvText], { type: "text/csv;charset=utf-8;" }), filename);
+      hint.textContent = "Файл деталировки скачан.";
+      return;
+    }
+
+    hint.textContent = "Не удалось сохранить CSV: " + (res.message || res.code);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+/* ================= СОХРАНЕНИЕ / ОТКРЫТИЕ ОПРОСА (JSON) =================
+   Сохраняет весь ввод (шаги 1-2: клиент, габариты, материалы, модули,
+   правки цен) в один JSON-файл — им же можно открыть проект заново на
+   шаге 1 и продолжить редактирование, не заполняя опрос с нуля. */
+function buildProjectSnapshot() {
+  return {
+    kind: "daniel-group-oprosnik",
+    version: 1,
+    savedAt: new Date().toISOString(),
+    meta: {
+      clientName: $("clientName").value,
+      projectTitle: $("projectTitle").value,
+      projectDate: $("projectDate").value,
+      productType: $("productType").value,
+      totalH: $("totalH").value,
+      totalW: $("totalW").value,
+      totalD: $("totalD").value,
+      risks: $("risks").value,
+    },
+    corpusDecor: $("corpusDecor").value,
+    facadeSpec: st.facadeSpec,
+    modules: st.modules,
+    priceOverrides: st.priceOverrides,
+    photo: st.photo,
+  };
+}
+
+function applyProjectSnapshot(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.modules)) {
+    throw new Error("это не похоже на файл опроса DANIEL GROUP");
+  }
+  const meta = data.meta || {};
+  $("clientName").value = meta.clientName || "";
+  $("projectTitle").value = meta.projectTitle || "";
+  $("projectDate").value = meta.projectDate || new Date().toISOString().slice(0, 10);
+  if (meta.productType) $("productType").value = meta.productType;
+  $("totalH").value = meta.totalH || 2400;
+  $("totalW").value = meta.totalW || 900;
+  $("totalD").value = meta.totalD || 600;
+  $("risks").value = meta.risks || "";
+
+  st.facadeSpec = data.facadeSpec || { type: "ldsp", decor: LDSP[0] ? LDSP[0].decor : "", name: "", priceM2: null, profilePriceM: null, glassPriceM2: null };
+  st.modules = data.modules;
+  st.priceOverrides = data.priceOverrides || {};
+  st.photo = data.photo || null;
+  st.detail = null;
+
+  initSelects();
+  $("corpusDecor").value = data.corpusDecor || (LDSP[0] ? LDSP[0].decor : "");
+  updateDecorHint("corpusDecor", "corpusDecorHint");
+
+  if (st.photo) {
+    const img = $("photoPreview");
+    img.src = st.photo;
+    img.style.display = "block";
+  }
+
+  if (!st.modules.length) addModule();
+  else renderModules();
+  renderModuleExtraButtons();
+}
+
+function handleProjectFileLoad(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      applyProjectSnapshot(JSON.parse(reader.result));
+      $("loadErr").textContent = "";
+      goStep(2);
+    } catch (err) {
+      $("loadErr").textContent = "Не удалось прочитать файл опроса: " + err.message;
+    }
+  };
+  reader.onerror = () => { $("loadErr").textContent = "Не удалось прочитать файл."; };
+  reader.readAsText(file);
+  e.target.value = ""; // чтобы можно было выбрать тот же файл повторно
+}
+
+async function downloadProjectJson() {
+  const btn = $("jsonDownloadBtn");
+  const hint = $("jsonDlHint");
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Сохраняем…";
+  hint.textContent = "";
+
+  try {
+    const jsonText = JSON.stringify(buildProjectSnapshot(), null, 2);
+    const filename = `oprosnik_${sanitizeFilename($("projectTitle").value) || "project"}.json`;
+
+    let res = await claudeDownloadSave(filename, jsonText);
+    if (res.ok) { hint.textContent = "Опрос сохранён — этим файлом можно открыть проект заново на шаге 1."; return; }
+    if (res.code === "declined") return; // пользователь сам отказался — молчим
+
+    if (res.code === "extension_not_enabled") {
+      const res2 = await claudeDownloadSave(filename.replace(/\.json$/, ".txt"), jsonText);
+      if (res2.ok) {
+        hint.textContent = "JSON сейчас недоступен — сохранён как .txt (те же данные, при необходимости переименуйте расширение в .json).";
+        return;
+      }
+      res = res2;
+    }
+
+    if (res.code === "no_api") {
+      downloadBlobAs(new Blob([jsonText], { type: "application/json;charset=utf-8;" }), filename);
+      hint.textContent = "Файл опроса скачан.";
+      return;
+    }
+
+    hint.textContent = "Не удалось сохранить опрос: " + (res.message || res.code);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+/* ================= КП: HTML-файл для печати в PDF =================
+   .pdf нет в списке расширений, которые принимает window.claude.downloads
+   (см. artifact-capabilities) — только gif png jpg jpeg webp mp4 webm
+   txt json md, плюс docx pptx epub csv ttf html svg. Поэтому КП отдаётся
+   как самодостаточный .html: логотип/фото уже встроены как data:-URI,
+   стили — инлайном. Пользователь открывает файл (уже вне всякой
+   песочницы) и жмёт «Печать» на странице или Ctrl+P → «Сохранить как
+   PDF» в браузере. Если html недоступен (extension_not_enabled) —
+   запасной вариант: JPEG-снимок КП (входит в базовый набор расширений). */
+
+const KP_EXPORT_CSS = `
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif; }
+  #kpDoc { background: #fff; color: #1c1c1a; padding: 34px; font-size: 15px; line-height: 1.55; }
+  #kpDoc .kp-logo { height: 40px; margin-bottom: 20px; background: #fff; }
+  #kpDoc .brand { font-weight: 700; letter-spacing: .06em; font-size: 17px; margin-bottom: 20px; }
+  #kpDoc h1 { font-size: 23px; margin: 0 0 4px; }
+  #kpDoc .kp-meta { color: #666; font-size: 13px; margin-bottom: 20px; }
+  #kpDoc .kp-photo { width: 100%; max-height: 330px; object-fit: cover; border-radius: 5px; margin-bottom: 20px; display: block; }
+  #kpDoc h2 { font-size: 15px; margin: 22px 0 8px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+  #kpDoc ul { margin: 0; padding-left: 20px; }
+  #kpDoc li { margin-bottom: 4px; }
+  #kpDoc table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  #kpDoc th, #kpDoc td { border: 1px solid #ddd; padding: 7px 9px; text-align: left; vertical-align: top; }
+  #kpDoc th { background: #f5f5f3; font-weight: 600; }
+  #kpDoc td.num, #kpDoc th.num { text-align: right; }
+  #kpDoc .price-big { font-size: 16px; font-weight: 700; }
+  #kpDoc .kp-note { margin-top: 18px; font-size: 12.5px; color: #444; white-space: pre-wrap; }
+`;
+
+/* Рендерит DOM-узел в JPEG data URL через SVG foreignObject.
+   Работает только с инлайновыми ресурсами (data: URI) — иначе canvas
+   считается "tainted" и toDataURL кидает исключение; логотип и фото уже
+   встроены как data: URI, так что это безопасно. */
+async function nodeToJpegDataUrl(node, cssText, widthPx, heightPx, scale) {
+  const xml = new XMLSerializer().serializeToString(node);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="${heightPx}">
+    <foreignObject width="100%" height="100%">
+      <div xmlns="http://www.w3.org/1999/xhtml">
+        <style>${cssText}</style>
+        ${xml}
+      </div>
+    </foreignObject>
+  </svg>`;
+  const svgUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error("Не удалось растеризовать документ"));
+    img.src = svgUrl;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = widthPx * scale;
+  canvas.height = heightPx * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, 0, 0, widthPx, heightPx);
+  return canvas;
+}
+
+function dataUrlToBytes(dataUrl) {
+  const base64 = dataUrl.split(",")[1];
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/* Самодостаточный HTML-документ КП: логотип/фото — уже data:-URI, стили —
+   инлайном (KP_EXPORT_CSS), внешних зависимостей нет. Открывается локально
+   как обычный файл — там window.print() работает без ограничений
+   песочницы, поэтому кнопка «Печать / Сохранить как PDF» внутри рабочая. */
+function buildKpStandaloneHtml() {
+  const doc = $("kpDoc");
+  const title = esc($("projectTitle").value || "Коммерческое предложение");
+  return `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>КП — ${title}</title>
+<style>
+${KP_EXPORT_CSS}
+  body { background: #f3f1ee; margin: 0; padding: 24px 16px 60px; }
+  .kp-shell { max-width: 860px; margin: 0 auto; }
+  .kp-printbar { max-width: 860px; margin: 0 auto 16px; text-align: right; }
+  .kp-printbar button {
+    font: inherit; font-weight: 600; font-size: 14px; padding: 10px 18px;
+    border-radius: 8px; border: 1px solid #8a6a3d; background: #8a6a3d;
+    color: #fff; cursor: pointer;
+  }
+  #kpDoc { border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .kp-printbar { display: none; }
+    #kpDoc { box-shadow: none; }
+    @page { size: A4; margin: 16mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="kp-printbar"><button onclick="window.print()">Печать / Сохранить как PDF</button></div>
+  <div class="kp-shell">${doc.outerHTML}</div>
+</body>
+</html>`;
+}
+
+async function downloadKp() {
+  const btn = $("kpDownloadBtn");
+  const hint = $("kpDlHint");
+  const oldText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Готовим файл…";
+  hint.textContent = "";
+
+  try {
+    const html = buildKpStandaloneHtml();
+    const baseName = sanitizeFilename($("projectTitle").value) || "kp";
+
+    let res = await claudeDownloadSave(`kp_${baseName}.html`, html);
+    if (res.ok) {
+      hint.textContent = "Готово: файл КП сохранён. Откройте его и нажмите «Печать / Сохранить как PDF» (или Ctrl+P) — так браузер сам соберёт PDF.";
+      return;
+    }
+    if (res.code === "declined") return; // пользователь сам отказался — молчим
+
+    if (res.code === "extension_not_enabled" || res.code === "no_api") {
+      // запасной вариант — картинка КП (jpg входит в базовый набор расширений)
+      const doc = $("kpDoc");
+      const widthPx = Math.max(700, Math.ceil(doc.getBoundingClientRect().width));
+      const heightPx = Math.max(100, doc.scrollHeight);
+      const canvas = await nodeToJpegDataUrl(doc, KP_EXPORT_CSS, widthPx, heightPx, 2);
+      const jpegDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+      if (res.code === "no_api") {
+        downloadBlobAs(new Blob([html], { type: "text/html;charset=utf-8;" }), `kp_${baseName}.html`);
+        hint.textContent = "Файл КП скачан как HTML — откройте его и напечатайте в PDF из браузера.";
+        return;
+      }
+
+      const res2 = await claudeDownloadSave(`kp_${baseName}.jpg`, dataUrlToBytes(jpegDataUrl));
+      if (res2.ok) {
+        hint.textContent = "HTML-файлы сейчас недоступны для сохранения — вместо этого сохранена картинка КП (JPEG). Из неё тоже можно напечатать в PDF.";
+        return;
+      }
+      hint.textContent = "Не удалось сохранить файл: " + (res2.message || res2.code);
+      return;
+    }
+
+    hint.textContent = "Не удалось сохранить файл: " + (res.message || res.code);
+  } catch (e) {
+    console.error(e);
+    hint.textContent = "Не удалось собрать файл КП: " + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+/* ================= КП ================= */
+function renderKP() {
+  const d = st.detail;
+  if (!d) return;
+  const variant = $("kpVariant").value;
+  const rows = [];
+  if (variant === "both" || variant === "low") {
+    rows.push(["Вариант 1 (коэффициент ×2.8)", d.cost * 2.8]);
+  }
+  if (variant === "both" || variant === "high") {
+    rows.push([`Вариант ${variant === "both" ? "2" : "1"} (коэффициент ×3.0)`, d.cost * 3.0]);
+  }
+
+  const dateStr = $("projectDate").value
+    ? new Date($("projectDate").value).toLocaleDateString("ru-RU")
+    : "";
+
+  const modulesList = Object.keys(d.byModule).length;
+  const corpus = decorById($("corpusDecor").value);
+  const facadeInfo = facadeMaterialInfo(st.facadeSpec);
+  const productOpt = $("productType").selectedOptions[0];
+  const spec = [
+    productOpt ? `Тип изделия: ${productOpt.textContent}` : "",
+    `Габариты (ориентировочно): ${$("totalH").value} × ${$("totalW").value} × ${$("totalD").value} мм (В×Ш×Г)`,
+    `Модулей: ${modulesList}`,
+    corpus ? `Корпус: ЛДСП Egger ${corpus.decor} ${corpus.st} — ${corpus.name}` : "",
+    facadeInfo ? `Фасады: ${facadeInfo.label}` : "Фасады: без фасадов",
+    `Фурнитура: Blum`,
+  ].filter(Boolean);
+
+  $("kpDoc").innerHTML = `
+    ${LOGO ? `<img class="kp-logo" src="${LOGO}" alt="DANIEL GROUP">` : `<div class="brand">DANIEL GROUP</div>`}
+    <h1>${esc($("projectTitle").value || "Коммерческое предложение")}</h1>
+    <div class="kp-meta">Клиент: ${esc($("clientName").value)} · Дата: ${esc(dateStr)}</div>
+    ${st.photo ? `<img class="kp-photo" src="${st.photo}" alt="Изделие">` : ""}
+
+    <h2>Состав изделия</h2>
+    <ul>${spec.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+
+    <h2>Стоимость</h2>
+    <table>
+      <thead><tr><th>Вариант</th><th class="num">Стоимость, ₽</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td>${esc(r[0])}</td>
+        <td class="num price-big">${fmt(r[1])}</td></tr>`).join("")}</tbody>
+    </table>
+
+    <div class="kp-note">Срок изготовления: ${esc($("kpTerm").value)}
+
+${esc($("kpNotes").value)}</div>`;
+}
+
+/* ================= НАВИГАЦИЯ ================= */
+function validateStep1Fields() {
+  const missing = [];
+  if (!$("clientName").value.trim()) missing.push("клиент");
+  if (!$("projectTitle").value.trim()) missing.push("название проекта");
+  if (missing.length) {
+    $("err1").textContent = "Заполните: " + missing.join(", ") + ".";
+    showStep(1);
+    return false;
+  }
+  $("err1").textContent = "";
+  return true;
+}
+
+function moduleHasBadDims(m) {
+  if (m.kind === "desk" || m.kind === "bed") return !m.length || m.length < 100 || !m.width || m.width < 100;
+  if (m.kind === "mirror") return !m.h || m.h < 50 || !m.w || m.w < 50;
+  return !m.w || m.w < 100 || !m.h || m.h < 200 || !m.d || m.d < 100;
+}
+function validateStep2Fields() {
+  if (!st.modules.length) { $("err2").textContent = "Добавьте хотя бы один модуль."; return false; }
+  const bad = st.modules.some(moduleHasBadDims);
+  if (bad || !+$("totalH").value || !+$("totalW").value || !+$("totalD").value) {
+    $("err2").textContent = "Проверьте габариты: высота, ширина и глубина должны быть заданы у общих полей и у каждого модуля.";
+    showStep(2);
+    return false;
+  }
+  $("err2").textContent = "";
+  return true;
+}
+
+function goStep(n) {
+  if (n >= 2 && !validateStep1Fields()) return;
+  if (n >= 3) {
+    if (!validateStep2Fields()) return;
+    renderDetailing();
+  }
+  // showStep СНАЧАЛА — иначе renderKP() (и фоновая сборка PDF внутри неё)
+  // измеряет #kpDoc, пока контейнер шага 4 ещё скрыт (scrollHeight ≈ 0).
+  showStep(n);
+  if (n >= 4) renderKP();
+}
+
+/* Переход «Опрос → Деталировка»: сначала та же валидация, что и в goStep(3),
+   но вместо немедленного перехода спрашиваем, сохранить ли опрос файлом —
+   именно в этот момент, а не пассивной кнопкой где-то на следующем шаге. */
+function goToDetailing() {
+  if (!validateStep1Fields() || !validateStep2Fields()) return;
+  $("saveModal").hidden = false;
+}
+function closeSaveModal() { $("saveModal").hidden = true; }
+async function saveAndGoDetailing() {
+  closeSaveModal();
+  await downloadProjectJson();
+  goStep(3);
+}
+function skipSaveGoDetailing() {
+  closeSaveModal();
+  goStep(3);
+}
+
+function showStep(n) {
+  document.querySelectorAll("[data-step]").forEach((el) => {
+    el.hidden = (+el.dataset.step !== n);
+  });
+  document.querySelectorAll("[data-chip]").forEach((el) => {
+    const i = +el.dataset.chip;
+    el.classList.toggle("active", i === n);
+    el.classList.toggle("done", i < n);
+  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ================= ФОТО ================= */
+function initPhoto() {
+  const drop = $("drop");
+  const input = $("photoInput");
+  drop.onclick = () => input.click();
+  input.onchange = (e) => { if (e.target.files[0]) loadPhoto(e.target.files[0]); };
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.add("over");
+  }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => {
+    e.preventDefault(); drop.classList.remove("over");
+  }));
+  drop.addEventListener("drop", (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith("image/")) loadPhoto(f);
+  });
+}
+
+function loadPhoto(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    st.photo = r.result;
+    const img = $("photoPreview");
+    img.src = r.result;
+    img.style.display = "block";
+  };
+  r.readAsDataURL(file);
+}
+
+/* ================= СТАРТ ================= */
+(function init() {
+  if (!LOGO) $("brandLogo").style.display = "none";
+  $("projectDate").value = new Date().toISOString().slice(0, 10);
+  initSelects();
+  initPhoto();
+  addModule();
+  $("modulesBox").addEventListener("change", () => renderModules());
+  $("projectFileInput").onchange = handleProjectFileLoad;
+  $("productType").onchange = renderModuleExtraButtons;
+  renderModuleExtraButtons();
+  showStep(1);
+})();
+</script>
