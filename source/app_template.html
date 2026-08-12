@@ -91,7 +91,9 @@
     display: flex; align-items: center; gap: 8px;
     padding: 7px 13px; border-radius: 100px; font-size: 13px;
     background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+    cursor: pointer; user-select: none;
   }
+  .step-chip:hover { border-color: var(--accent); }
   .step-chip .n {
     width: 20px; height: 20px; border-radius: 50%; flex: none;
     display: grid; place-items: center; font-size: 11px; font-weight: 700;
@@ -270,10 +272,10 @@
   </header>
 
   <div class="steps no-print">
-    <div class="step-chip active" data-chip="1"><span class="n">1</span> Фото и проект</div>
-    <div class="step-chip" data-chip="2"><span class="n">2</span> Опрос</div>
-    <div class="step-chip" data-chip="3"><span class="n">3</span> Деталировка и цены</div>
-    <div class="step-chip" data-chip="4"><span class="n">4</span> КП</div>
+    <div class="step-chip active" data-chip="1" onclick="goStep(1)"><span class="n">1</span> Фото и проект</div>
+    <div class="step-chip" data-chip="2" onclick="goStep(2)"><span class="n">2</span> Опрос</div>
+    <div class="step-chip" data-chip="3" onclick="goStep(3)"><span class="n">3</span> Деталировка и цены</div>
+    <div class="step-chip" data-chip="4" onclick="goStep(4)"><span class="n">4</span> КП</div>
   </div>
 
   <!-- ШАГ 1 -->
@@ -1980,7 +1982,10 @@ async function downloadProjectJson() {
 
   try {
     const jsonText = JSON.stringify(buildProjectSnapshot(), null, 2);
-    const filename = `oprosnik_${sanitizeFilename($("projectTitle").value) || "project"}.json`;
+    const clientPart = sanitizeFilename($("clientName").value) || "клиент";
+    const productPart = sanitizeFilename($("productType").selectedOptions[0] ? $("productType").selectedOptions[0].textContent : "") || "изделие";
+    const datePart = $("projectDate").value || new Date().toISOString().slice(0, 10);
+    const filename = `${clientPart}_${productPart}_${datePart}.json`;
 
     let res = await claudeDownloadSave(filename, jsonText);
     if (res.ok) { hint.textContent = "Опрос сохранён — этим файлом можно открыть проект заново на шаге 1."; return; }
