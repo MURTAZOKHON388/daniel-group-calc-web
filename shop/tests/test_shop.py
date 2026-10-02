@@ -340,6 +340,65 @@ class TestReport(ShopCase):
         logic.reopen_month(self.conn, "2026-10")
         logic.adjust_line(self.conn, line["id"], 240, "вернул")
 
+    def test_defect_matrix(self):
+        self.conn.execute("UPDATE deals SET stage_id = 'C1:PACK' WHERE id IN (1234, 1237)")
+        self.work(1234, "Упаковка", ["Алишер"])
+        self.work(1237, "Упаковка", ["Иван"])
+        pack = self.sec("Упаковка")["id"]
+        logic.report_defect(self.conn, 1234, pack, "Царапины", True)
+        logic.report_defect(self.conn, 1237, pack, "Брак плиты", False)  # не вина — в матрицу не идёт
+        rep = logic.month_report(self.conn, "2026-10")
+        self.assertEqual(rep["defect_matrix"], [{"worker_id": self.worker("Алишер")["id"], "worker": "Алишер",
+                                                 "section_id": pack, "section": "Упаковка", "count": 1}])
+        self.assertEqual(len(rep["defects"]), 2)
+        self.assertEqual(logic.month_report(self.conn, "2026-09")["defect_matrix"], [])
+
+    def test_shadow_snapshot(self):
+        self.work(1201, "Распил", ["Солех"])
+        self.assertTrue(logic.month_report(self.conn, "2026-10")["shadow"])
+        self.clock.dt = datetime(2026, 11, 2, 9, 0)
+        logic.close_month(self.conn, "2026-10")  # закрыли в теневом режиме
+        logic.set_settings(self.conn, {"shadow_mode": "0"})  # с ноября платят по системе
+        self.assertTrue(logic.month_report(self.conn, "2026-10")["shadow"])
+        self.assertFalse(logic.month_report(self.conn, "2026-11")["shadow"])
+        self.assertNotIn("ТЕНЕВОЙ", zipfile.ZipFile(io.BytesIO(server.report_xlsx(
+            logic.month_report(self.conn, "2026-11")))).read("xl/worksheets/sheet1.xml").decode())
+        logic.reopen_month(self.conn, "2026-10")  # открытый месяц — по текущей настройке
+        self.assertFalse(logic.month_report(self.conn, "2026-10")["shadow"])
+
+    def test_report_months(self):
+        self.assertEqual(logic.report_months(self.conn), [{"month": "2026-10", "closed": False}])
+        demo.seed_history(self.conn)
+        logic.close_month(self.conn, "2026-09")
+        self.assertEqual(logic.report_months(self.conn), [{"month": "2026-10", "closed": False},
+                                                          {"month": "2026-09", "closed": True}])
+        for bad in ("", "2026-13", "сентябрь"):
+            with self.assertRaises(logic.ShopError):
+                logic.close_month(self.conn, bad)
+
+    def test_seed_history(self):
+        month = demo.seed_history(self.conn)
+        self.assertEqual(month, "2026-09")
+        sync.pull(self.conn, self.bx)  # синк не трогает закрытые заказы, которых нет в Битриксе
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM deals WHERE gone = 1 AND stage_id = 'C1:WON'")
+                         .fetchone()[0], 5)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM outbox").fetchone()[0], 0)
+        rep = logic.month_report(self.conn, month)
+        pieces = [ln for ln in rep["lines"] if ln["kind"] == "piece"]
+        for ln in pieces:
+            expected = 0 if ln["note"] else round(ln["qty"] * ln["rate"] * ln["share"], 2)
+            self.assertEqual(ln["amount"], expected, ln)
+        rework = [ln for ln in pieces if ln["note"]]
+        self.assertEqual([(ln["worker"], ln["deal_number"], ln["amount"]) for ln in rework], [("Алишер", "DG-1104", 0)])
+        self.assertEqual([(ln["worker"], ln["amount"]) for ln in rep["lines"] if ln["kind"] == "manual"], [("Иван", 1200)])
+        self.assertEqual([(m["worker"], m["section"], m["count"]) for m in rep["defect_matrix"]], [("Алишер", "Присадка", 1)])
+        self.assertIsNotNone(rep["defects"][0]["resolved_at"])
+        people = {p["name"]: p for p in rep["people"]}
+        self.assertEqual(people["Дильшод"]["piece"], 5 * 150)  # приёмку DG-1104 закрыл брак — оплачена один раз
+        self.assertEqual(people["Иван"]["total"], 30000 + people["Иван"]["piece"] + 1200)
+        logic.close_month(self.conn, month)
+        self.assertTrue(logic.month_report(self.conn, month)["closed"])
+
     def test_xlsx(self):
         self.work(1201, "Распил", ["Солех"])
         data = server.report_xlsx(logic.month_report(self.conn, "2026-10"))
@@ -356,6 +415,24 @@ class TestReport(ShopCase):
         z = zipfile.ZipFile(io.BytesIO(data))
         minidom.parseString(z.read("xl/workbook.xml"))
         minidom.parseString(z.read("xl/worksheets/sheet1.xml"))
+
+
+class TestMigration(unittest.TestCase):
+    def test_months_shadow_column(self):
+        # База, созданная до снимка теневого режима: в months нет колонки shadow.
+        conn = db.connect(":memory:")
+        conn.execute("""CREATE TABLE months (month TEXT PRIMARY KEY, closed_at TEXT NOT NULL,
+                        salaries TEXT NOT NULL DEFAULT '{}')""")
+        conn.execute("""INSERT INTO months VALUES('2026-09', '2026-10-01 10:00:00', '{"1": 30000}')""")
+        db.init(conn)
+        db.init(conn)  # повторный запуск сервера — без ошибок
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(months)")]
+        self.assertIn("shadow", cols)
+        row = conn.execute("SELECT * FROM months").fetchone()
+        self.assertEqual((row["month"], row["closed_at"], row["salaries"], row["shadow"]),
+                         ("2026-09", "2026-10-01 10:00:00", '{"1": 30000}', 0))
+        self.assertFalse(logic.month_report(conn, "2026-09")["shadow"])
+        conn.close()
 
 
 class TestBitrixHelpers(unittest.TestCase):
@@ -475,7 +552,7 @@ class TestHttp(unittest.TestCase):
         self.assertEqual(code, 200)
 
     def test_pages(self):
-        for path in ("/", "/terminal", "/admin", "/print", "/static/common.css", "/static/common.js", "/static/logo.png",
+        for path in ("/", "/terminal", "/admin", "/report", "/print", "/static/common.css", "/static/common.js", "/static/logo.png",
                      "/static/vendor/qrcode.js", "/static/vendor/JsBarcode.code128.min.js"):
             code, _ = self.req(path)
             self.assertEqual(code, 200, path)
@@ -483,6 +560,84 @@ class TestHttp(unittest.TestCase):
         self.assertIn(b'/*__SERVER_API__*/"/api/board"', html)
         code, _ = self.req("/static/../server.py")
         self.assertEqual(code, 404)
+
+    def test_report_api(self):
+        code, info = self.req("/api/info")
+        edge = next(s for s in info["sections"] if s["name"] == "Кромка")["id"]
+        code, w = self.req("/api/scan", {"section_id": edge, "code": "W-0004"})
+        code, st = self.req("/api/start", {"section_id": edge, "deal_id": 1216, "worker_ids": [w["worker"]["id"]]})
+        self.assertEqual(code, 200, st)
+        code, fin = self.req("/api/finish", {"session_id": st["session_id"], "result": "done"})
+        self.assertEqual(fin["earnings"][0]["amount"], 12 * 18)  # Кромка 2 мм
+
+        code, rep = self.req("/api/report")
+        self.assertEqual(code, 200, rep)
+        for key in ("month", "closed", "closed_at", "shadow", "people", "lines", "defects", "defects_by_section",
+                    "defect_matrix", "workers", "today"):
+            self.assertIn(key, rep)
+        self.assertEqual(rep["month"], rep["today"][:7])
+        self.assertEqual((rep["closed"], rep["shadow"]), (False, True))
+        line = next(ln for ln in rep["lines"] if ln["deal_id"] == 1216 and ln["worker"] == "Алишер")
+        for key in ("id", "kind", "deal_number", "client", "section", "operation", "qty", "unit", "rate", "share",
+                    "amount", "note", "partners", "adjusted", "created_at"):
+            self.assertIn(key, line)
+        before = next(p for p in rep["people"] if p["name"] == "Алишер")
+
+        code, err = self.req("/api/report/adjust", {"ledger_id": line["id"], "amount": 300, "note": " "})
+        self.assertEqual(code, 400)
+        self.assertIn("причину", err["error"])
+        code, res = self.req("/api/report/adjust", {"ledger_id": line["id"], "amount": "300", "note": "торцы"})
+        self.assertEqual(code, 200, res)
+        code, res = self.req("/api/report/manual", {"month": rep["month"], "worker_id": w["worker"]["id"],
+                                                    "amount": 500, "note": "наладка станка"})
+        self.assertEqual(code, 200, res)
+        code, rep = self.req("/api/report?month=" + rep["month"])
+        line = next(ln for ln in rep["lines"] if ln["id"] == line["id"])
+        self.assertEqual(line["adjusted"], 300 - 216)
+        adj = next(ln for ln in rep["lines"] if ln["kind"] == "adjust" and ln["ref_id"] == line["id"])
+        self.assertEqual((adj["amount"], adj["note"]), (84, "торцы"))
+        after = next(p for p in rep["people"] if p["name"] == "Алишер")
+        self.assertEqual(after["total"] - before["total"], 84 + 500)
+
+        code, months = self.req("/api/report/months")
+        self.assertEqual(code, 200)
+        self.assertEqual(months[0], {"month": rep["month"], "closed": False})
+        code, err = self.req("/api/report/close", {"month": rep["month"]})
+        self.assertEqual(code, 400)  # текущий месяц не закрыть
+        code, err = self.req("/api/report?month=2026-13")
+        self.assertEqual(code, 400)
+
+    def test_report_close_reopen(self):
+        code, _ = self.req("/api/report/close", {"month": "2020-01"})
+        self.assertEqual(code, 200)
+        code, months = self.req("/api/report/months")
+        self.assertIn({"month": "2020-01", "closed": True}, months)
+        code, rep = self.req("/api/report?month=2020-01")
+        self.assertTrue(rep["closed"])
+        self.assertTrue(rep["closed_at"])
+        body = {"month": "2020-01", "worker_id": rep["workers"][0]["id"], "amount": 100, "note": "премия"}
+        code, err = self.req("/api/report/manual", body)
+        self.assertEqual(code, 400)
+        self.assertIn("закрыт", err["error"])
+        code, _ = self.req("/api/report/reopen", {"month": "2020-01"})
+        self.assertEqual(code, 200)
+        code, _ = self.req("/api/report/manual", body)
+        self.assertEqual(code, 200)
+
+    def test_report_pin(self):
+        code, _ = self.req("/api/admin/settings", {"admin_pin": "2468"})
+        self.assertEqual(code, 200)
+        try:
+            for path in ("/api/report", "/api/report/months", "/api/report/xlsx"):
+                code, res = self.req(path)
+                self.assertEqual((code, res.get("pin")), (401, True), path)
+            code, _ = self.req("/api/report/close", {"month": "2020-02"})
+            self.assertEqual(code, 401)
+            code, res = self.req("/api/report/months", pin="2468")
+            self.assertEqual(code, 200)
+        finally:
+            code, _ = self.req("/api/admin/settings", {"admin_pin": ""}, pin="2468")
+            self.assertEqual(code, 200)
 
     def test_xlsx_download(self):
         code, data = self.req("/api/report/xlsx?month=2026-10")

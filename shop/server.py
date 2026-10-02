@@ -521,7 +521,12 @@ class Handler(BaseHTTPRequestHandler):
         rep = logic.month_report(conn, month)
         rep["workers"] = [{"id": r["id"], "name": r["name"]} for r in conn.execute(
             "SELECT id, name FROM workers WHERE active = 1 ORDER BY name")]
+        rep["today"] = logic.now().strftime("%Y-%m-%d")  # какой месяц идёт — по часам сервера
         self._json(rep)
+
+    @route("GET", r"/api/report/months", auth=True)
+    def api_report_months(self, conn, q, body):
+        self._json(logic.report_months(conn))
 
     @route("POST", r"/api/report/adjust", auth=True)
     def api_report_adjust(self, conn, q, body):
@@ -622,6 +627,7 @@ def main(argv=None) -> None:
     if demo_client:
         import demo
         demo.seed(conn)
+        demo.seed_history(conn)
         with db.tx(conn):
             logic.set_settings(conn, {"meta_cache": sync.fetch_meta(demo_client)})
     conn.close()

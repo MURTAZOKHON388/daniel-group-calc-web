@@ -30,7 +30,7 @@
       <div class="sub">Справочники цеха</div>
     </div>
     <div class="spacer"></div>
-    <nav><a href="/">Главная</a><a href="/tablo">Табло</a><a href="/admin" class="active">Справочники</a></nav>
+    <nav><a href="/">Главная</a><a href="/tablo">Табло</a><a href="/admin" class="active">Справочники</a><a href="/report">Отчёт</a></nav>
   </header>
 
   <div class="note" id="demoNote" hidden style="margin-bottom:14px">
@@ -425,6 +425,8 @@ function viewModes() {
     <h3 class="blk">Теневой режим</h3>
     <label class="checkline"><input type="checkbox" id="shadow" ${st.shadow_mode === "1" ? "checked" : ""}>
       Сделка считается, но не к выплате — в отчёте и Excel пометка. Первый месяц платите как раньше и сравнивайте.</label>
+    <p class="hint">Выключайте после того, как закроете теневой месяц в «Отчёте»: закрытый месяц запоминает режим,
+      а открытый показывается по текущей настройке.</p>
 
     <h3 class="blk">Причины</h3>
     <div class="grid">

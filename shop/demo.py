@@ -219,3 +219,108 @@ def seed(conn) -> None:
         for i, (name, salary) in enumerate([("Солех", 30000), ("Иван", 30000), ("Рустам", 28000),
                                             ("Алишер", 28000), ("Дильшод", 32000)]):
             conn.execute("INSERT INTO workers(name, badge, salary) VALUES(?, ?, ?)", (name, f"W-{i + 1:04d}", salary))
+
+
+def seed_history(conn) -> str:
+    """Прошлый месяц для отчёта: закрыть можно только прошедший месяц, а без
+    истории в демо закрывать нечего. Возвращает месяц (YYYY-MM).
+
+    Прямые вставки, а не finish_session: тот поставил бы в outbox смену стадий
+    сделок, которых нет в поддельном Битриксе, и в справочниках повисли бы
+    ошибки отправки. Суммы те же, что посчитал бы он: объём × ставка ÷ число людей."""
+    month = (logic.now().date().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    sec = {r["name"]: r for r in conn.execute("SELECT * FROM sections")}
+    who = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM workers")}
+    tpl = logic.setting(conn, "number_tpl")
+
+    def at(day: int, hour: int) -> str:
+        return f"{month}-{day:02d} {hour:02d}:{(day * 7 + hour * 11) % 60:02d}:00"
+
+    def work(deal_id, section, day, hour, names, vols=None, result="done", reason="", defect_id=None, note=""):
+        """Заход на участок с 'Начал' в hour и 'Готово' через два часа. Возвращает (сессия, время окончания)."""
+        s, end = sec[section], at(day, hour + 2)
+        sid = conn.execute(
+            """INSERT INTO sessions(deal_id, section_id, started_at, finished_at, result, reason, defect_id)
+               VALUES(?, ?, ?, ?, ?, ?, ?)""",
+            (deal_id, s["id"], at(day, hour), end, result, reason, defect_id),
+        ).lastrowid
+        for name in names:
+            conn.execute("INSERT INTO session_workers(session_id, worker_id) VALUES(?, ?)", (sid, who[name]))
+        if result != "done":
+            return sid, end
+        for op in logic.section_ops(conn, s["id"]):
+            qty = 1.0 if op["per_deal"] else float((vols or {}).get(op["name"], 0))
+            if qty <= 0:
+                continue
+            for name in names:
+                amount = 0.0 if note else round(qty * op["rate"] / len(names), 2)
+                conn.execute(
+                    """INSERT INTO ledger(month, worker_id, kind, session_id, deal_id, section_id, operation_id,
+                                          qty, unit, rate, share, amount, note, created_at)
+                       VALUES(?, ?, 'piece', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (month, who[name], sid, deal_id, s["id"], op["id"], qty, op["unit"], op["rate"],
+                     1 / len(names), amount, note, end),
+                )
+        return sid, end
+
+    with tx(conn):
+        for did, title, client, ship in [
+            (1101, "Кухня угловая", "Иванов Иван", 9),
+            (1104, "Шкаф-купе", "ООО «Интерьер Плюс»", 16),
+            (1107, "Прихожая", "Петрова Анна", 18),
+            (1110, "Гардероб", "Студия «Линия»", 24),
+            (1113, "Распил 6 листов", "Ким Виктор", 25),
+        ]:
+            conn.execute(
+                """INSERT INTO deals(id, number, title, client, ship_date, stage_id, category_id, synced_at, gone)
+                   VALUES(?, ?, ?, ?, ?, 'C1:WON', ?, ?, 1)""",
+                (did, logic.number_for(tpl, {"ID": did}), title, client, f"{month}-{ship:02d}", CATEGORY, at(ship, 8)),
+            )
+
+        work(1101, "Распил", 2, 9, ["Солех"], {"Распил": 58})
+        work(1101, "Кромка", 3, 9, ["Иван", "Рустам"], {"Кромка 0,4 мм": 36, "Кромка 2 мм": 14})
+        work(1101, "Присадка", 4, 10, ["Алишер"], {"Присадка": 170})
+        work(1101, "Упаковка", 7, 9, ["Рустам"], {"Упаковка": 6})
+        work(1101, "ОТК", 7, 14, ["Дильшод"])
+
+        # DG-1104: ОТК нашёл брак присадки по вине рабочего — переделка за 0 ₽,
+        # приёмка оплачена один раз (первую закрыл брак).
+        work(1104, "Распил", 8, 9, ["Иван"], {"Распил": 41})
+        work(1104, "Кромка", 9, 9, ["Рустам"], {"Кромка 2 мм": 30})
+        drill, _ = work(1104, "Присадка", 10, 9, ["Алишер"], {"Присадка": 96})
+        work(1104, "Упаковка", 11, 9, ["Солех"], {"Упаковка": 4})
+        _, found = work(1104, "ОТК", 11, 13, ["Дильшод"], result="defect", reason="Ошибка присадки")
+        defect_id = conn.execute(
+            """INSERT INTO defects(deal_id, section_id, session_id, reason, worker_fault, policy,
+                                   return_stage_id, reported_at, reported_by)
+               VALUES(1104, ?, ?, 'Ошибка присадки', 1, 'unpaid', ?, ?, 'Дильшод')""",
+            (sec["Присадка"]["id"], drill, sec["ОТК"]["stage_id"], found),
+        ).lastrowid
+        conn.execute("INSERT INTO defect_workers(defect_id, worker_id) VALUES(?, ?)", (defect_id, who["Алишер"]))
+        _, fixed = work(1104, "Присадка", 14, 9, ["Алишер"], {"Присадка": 96}, defect_id=defect_id,
+                        note="переделка по браку — не оплачивается")
+        conn.execute("UPDATE defects SET resolved_at = ? WHERE id = ?", (fixed, defect_id))
+        work(1104, "ОТК", 14, 14, ["Дильшод"])
+
+        work(1107, "Распил", 11, 13, ["Солех"], {"Распил": 30})
+        work(1107, "Кромка", 14, 9, ["Иван", "Солех"], {"Кромка 0,4 мм": 25, "Кромка 2 мм": 10})
+        work(1107, "Присадка", 15, 9, ["Алишер"], {"Присадка": 64})
+        work(1107, "Упаковка", 16, 9, ["Рустам"], {"Упаковка": 3})
+        work(1107, "ОТК", 16, 14, ["Дильшод"])
+
+        work(1110, "Распил", 17, 9, ["Солех"], {"Распил": 52})
+        work(1110, "Кромка", 18, 9, ["Иван"], {"Кромка 0,4 мм": 40})
+        work(1110, "Присадка", 21, 9, ["Алишер"], {"Присадка": 120})
+        work(1110, "Упаковка", 22, 9, ["Рустам"], {"Упаковка": 5})
+        work(1110, "ОТК", 22, 14, ["Дильшод"])
+
+        work(1113, "Распил", 21, 13, ["Иван"], {"Распил": 44})
+        work(1113, "Кромка", 22, 13, ["Рустам"], {"Кромка 0,4 мм": 30})  # без присадки
+        work(1113, "Упаковка", 23, 9, ["Рустам"], {"Упаковка": 2})
+        work(1113, "ОТК", 23, 14, ["Дильшод"])
+
+        conn.execute(
+            "INSERT INTO ledger(month, worker_id, kind, amount, note, created_at) VALUES(?, ?, 'manual', 1200, ?, ?)",
+            (month, who["Иван"], "наладка станка", at(24, 17)),
+        )
+    return month

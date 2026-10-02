@@ -149,7 +149,8 @@ CREATE TABLE IF NOT EXISTS defect_workers (
 CREATE TABLE IF NOT EXISTS months (
   month      TEXT PRIMARY KEY,
   closed_at  TEXT NOT NULL,
-  salaries   TEXT NOT NULL DEFAULT '{}'   -- оклады на момент закрытия, JSON {worker_id: ₽}
+  salaries   TEXT NOT NULL DEFAULT '{}',  -- оклады на момент закрытия, JSON {worker_id: ₽}
+  shadow     INTEGER NOT NULL DEFAULT 0   -- теневой режим на момент закрытия
 );
 
 -- Всё, что пишется в Битрикс, сначала ложится сюда и уходит, когда есть связь.
@@ -188,6 +189,14 @@ def connect(path: str | Path = DEFAULT_DB) -> sqlite3.Connection:
 
 def init(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    # База в цеху создана раньше новых колонок, а CREATE TABLE IF NOT EXISTS
+    # их в готовую таблицу не добавит — дописываем сами.
+    _add_column(conn, "months", "shadow", "INTEGER NOT NULL DEFAULT 0")
+
+
+def _add_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 @contextmanager
