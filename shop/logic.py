@@ -559,6 +559,14 @@ def report_defect(conn: sqlite3.Connection, deal_id: int, section_id: int, reaso
                 )
                 deducted += row["amount"]
 
+        # ОТК мог начать приёмку («Начал») — брак её завершает: без оплаты и без
+        # смены стадии, заказ уже возвращается на участок. Принимать заново после переделки.
+        conn.execute(
+            """UPDATE sessions SET finished_at = ?, result = 'defect', reason = ?
+               WHERE deal_id = ? AND finished_at IS NULL
+               AND section_id IN (SELECT id FROM sections WHERE kind = 'otk')""",
+            (ts, reason, deal_id),
+        )
         if section["stage_id"] and section["stage_id"] != deal["stage_id"]:
             move_stage(conn, deal_id, section["stage_id"])
         names = ", ".join(w["name"] for w in workers) or "нет отметок"
@@ -626,11 +634,16 @@ def queue(conn: sqlite3.Connection, section_id: int) -> list[dict]:
     out = []
     for r in rows:
         d = deal_dict(r, working, rework)
-        vols = deal_volumes(conn, r["id"])
-        d["volumes"] = [f"{op['name']}: {fmt_qty(vols[op['id']])} {op['unit']}"
-                        for op in ops if not op["per_deal"] and vols.get(op["id"])]
+        d["volumes"] = section_volumes(conn, r["id"], ops)
         out.append(d)
     return out
+
+
+def section_volumes(conn: sqlite3.Connection, deal_id: int, ops: list[sqlite3.Row]) -> list[str]:
+    """Объёмы заказа по операциям участка — для очереди и карточки на терминале."""
+    vols = deal_volumes(conn, deal_id)
+    return [f"{op['name']}: {fmt_qty(vols[op['id']])} {op['unit']}"
+            for op in ops if not op["per_deal"] and vols.get(op["id"])]
 
 
 # ================= ОТЧЁТ =================

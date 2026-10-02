@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   section_id   INTEGER NOT NULL,
   started_at   TEXT NOT NULL,
   finished_at  TEXT,
-  result       TEXT,            -- done | remark | problem | cancelled
+  result       TEXT,            -- done | remark | problem | cancelled | defect (ОТК нашёл брак)
   reason       TEXT NOT NULL DEFAULT '',
   comment      TEXT NOT NULL DEFAULT '',
   defect_id    INTEGER          -- переделка по этому браку

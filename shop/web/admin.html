@@ -45,6 +45,7 @@
 /* Справочники: подключение к Битриксу, люди, участки и ставки, товары, режимы, печать.
    Состояние целиком берём из /api/admin/state и перерисовываем вкладку после каждого сохранения. */
 const TABS = [
+  ["now", "Сейчас в цеху"],
   ["bitrix", "Битрикс"],
   ["people", "Люди"],
   ["sections", "Участки и ставки"],
@@ -77,11 +78,11 @@ function setTab(t) {
 
 function render() {
   const unmapped = S.products.filter((p) => !p.mapped).length;
-  const badge = { products: unmapped, bitrix: S.sync.failed.length + (S.sync.error ? 1 : 0) };
+  const badge = { now: S.problems.length, products: unmapped, bitrix: S.sync.failed.length + (S.sync.error ? 1 : 0) };
   $("tabs").innerHTML = TABS.map(([id, name]) =>
     `<div class="tab ${id === tab ? "active" : ""}" data-tab="${id}">${esc(name)}${badge[id] ? `<span class="dot">${badge[id]}</span>` : ""}</div>`
   ).join("");
-  const fn = { bitrix: viewBitrix, people: viewPeople, sections: viewSections, products: viewProducts, modes: viewModes, print: viewPrint }[tab] || viewBitrix;
+  const fn = { now: viewNow, bitrix: viewBitrix, people: viewPeople, sections: viewSections, products: viewProducts, modes: viewModes, print: viewPrint }[tab] || viewBitrix;
   $("view").innerHTML = fn();
   if (tab === "print") loadDeals();
 }
@@ -98,6 +99,39 @@ async function save(path, body, okMsg) {
     return false;
   }
 }
+
+/* ================= СЕЙЧАС В ЦЕХУ ================= */
+function viewNow() {
+  const open = S.open_sessions, probs = S.problems;
+  return `<div class="card">
+    <h3 class="blk">Открытые работы</h3>
+    <p class="hint">Кто нажал «Начал» и ещё не закрыл. Если рабочий начал не тот заказ или ушёл, не нажав «Готово», —
+      отмените: денег не начислится, сделка останется на месте, участок сможет начать заново.</p>
+    ${open.length ? `<div class="table-wrap"><table>
+      <tr><th>Начато</th><th>Заказ</th><th>Участок</th><th>Кто</th><th></th></tr>
+      ${open.map((x) => `<tr><td>${esc(shortTs(x.started_at))}</td><td><b>${esc(x.number)}</b></td><td>${esc(x.section)}</td>
+        <td>${esc(x.workers.join(", "))}</td>
+        <td><button class="small danger" onclick="cancelSession(${x.id}, this)">Отменить</button></td></tr>`).join("")}
+    </table></div>` : `<p class="note ok">Сейчас никто не работает по заказам.</p>`}
+  </div>
+  <div class="card">
+    <h3 class="blk">Заказы с пометкой «Проблема»</h3>
+    <p class="hint">Пометка видна на табло и терминале и снимается сама, когда участок снова нажмёт «Начал».
+      Если вопрос решён иначе — снимите вручную.</p>
+    ${probs.length ? `<div class="table-wrap"><table>
+      <tr><th>Заказ</th><th>Клиент</th><th>Проблема</th><th></th></tr>
+      ${probs.map((d) => `<tr class="attn"><td><b>${esc(d.number)}</b></td><td>${esc(d.client)}</td><td>${esc(d.problem)}</td>
+        <td><button class="small" onclick="clearProblem(${d.id})">Снять</button></td></tr>`).join("")}
+    </table></div>` : `<p class="note ok">Проблем нет.</p>`}
+    <div class="actions"><button onclick="load()">Обновить</button></div>
+  </div>`;
+}
+function cancelSession(id, btn) {
+  const row = btn.closest("tr").querySelectorAll("td");
+  if (!confirm(`Отменить работу ${row[1].textContent} на участке «${row[2].textContent}»? Денег за неё не начислится.`)) return;
+  save("/api/admin/session/cancel", { session_id: id }, "Работа отменена");
+}
+function clearProblem(id) { save("/api/admin/deal/clear_problem", { deal_id: id }, "Пометка снята"); }
 
 /* ================= БИТРИКС ================= */
 function stagesFor(cat) {

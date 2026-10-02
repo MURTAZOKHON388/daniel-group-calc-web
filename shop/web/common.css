@@ -14,6 +14,15 @@
   --ok-soft: #e6f2ea;
   --err: #b3261e;
   --err-soft: #fbe4e1;
+  --on-accent: #ffffff;
+  --on-ok: #ffffff;
+  /* Срочность как на табло: красный — отгрузка сегодня или просрочена, жёлтый — завтра. */
+  --late-bg: #fbe4e1;
+  --late-border: #d9534a;
+  --late-text: #8f1d14;
+  --soon-bg: #fdf1cf;
+  --soon-border: #e0a92a;
+  --soon-text: #7a5300;
   --radius: 10px;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
@@ -33,6 +42,14 @@
     --ok-soft: #1d2e23;
     --err: #f2b8b5;
     --err-soft: #3d1d1b;
+    --on-accent: #1c1408;
+    --on-ok: #0f1a13;
+    --late-bg: #3d1d1b;
+    --late-border: #e0645b;
+    --late-text: #ffb4ad;
+    --soon-bg: #3a3017;
+    --soon-border: #d9a632;
+    --soon-text: #f4d27a;
   }
 }
 :root[data-theme="dark"] {
@@ -50,6 +67,14 @@
   --ok-soft: #1d2e23;
   --err: #f2b8b5;
   --err-soft: #3d1d1b;
+  --on-accent: #1c1408;
+  --on-ok: #0f1a13;
+  --late-bg: #3d1d1b;
+  --late-border: #e0645b;
+  --late-text: #ffb4ad;
+  --soon-bg: #3a3017;
+  --soon-border: #d9a632;
+  --soon-text: #f4d27a;
 }
 
 * { box-sizing: border-box; }
@@ -124,7 +149,7 @@ button, .btn {
   border-radius: 8px; padding: 9px 16px; border: 1px solid var(--border);
   background: var(--surface-2); color: var(--text); display: inline-flex; align-items: center; gap: 6px;
 }
-button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.small, .btn.small { padding: 5px 10px; font-size: 13px; }
 button.danger { color: var(--err); }
 button:disabled { opacity: .45; cursor: not-allowed; }

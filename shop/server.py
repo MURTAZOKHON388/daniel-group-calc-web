@@ -244,8 +244,10 @@ class Handler(BaseHTTPRequestHandler):
                            "title": r["title"], "started_at": r["started_at"], "rework": bool(r["defect_id"]),
                            "workers": [w["name"] for w in logic.session_workers(conn, r["id"])]})
         self._json({
-            "section": {"id": section["id"], "name": section["name"], "kind": section["kind"]},
-            "sections": [dict(id=r["id"], name=r["name"]) for r in logic.sections(conn)],
+            "section": {"id": section["id"], "name": section["name"], "kind": section["kind"],
+                        "stage_id": section["stage_id"]},
+            "sections": [dict(id=r["id"], name=r["name"], kind=r["kind"]) for r in logic.sections(conn)],
+            "today": logic.now().strftime("%Y-%m-%d"),  # дата сервера: часы планшета могут врать
             "queue": logic.queue(conn, section["id"]),
             "open": opened,
             "reasons": {"remark": s["remark_reasons"], "problem": s["problem_reasons"], "defect": s["defect_reasons"]},
@@ -272,8 +274,11 @@ class Handler(BaseHTTPRequestHandler):
         s = logic.open_session(conn, d["id"], section_id)
         self._json({
             "type": "deal",
-            "deal": logic.deal_dict(d, working, rework) | {"stageName": logic.stage_name(conn, d["stage_id"]),
-                                                           "gone": bool(d["gone"])},
+            "deal": logic.deal_dict(d, working, rework) | {
+                "stageName": logic.stage_name(conn, d["stage_id"]),
+                "gone": bool(d["gone"]),
+                "volumes": logic.section_volumes(conn, d["id"], logic.section_ops(conn, section_id)),
+            },
             "open_session": {"session_id": s["id"], "started_at": s["started_at"], "rework": bool(s["defect_id"]),
                              "workers": [x["name"] for x in logic.session_workers(conn, s["id"])],
                              "worker_ids": [x["id"] for x in logic.session_workers(conn, s["id"])]} if s else None,

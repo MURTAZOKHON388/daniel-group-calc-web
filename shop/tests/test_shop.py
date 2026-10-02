@@ -287,6 +287,27 @@ class TestDefects(ShopCase):
         self._flow()
         self.assertEqual([s["name"] for s in logic.passed_sections(self.conn, 1234)], ["Упаковка"])
 
+    def test_otk_defect_closes_otk_session(self):
+        self._flow()
+        otk = self.sec("ОТК")["id"]
+        logic.start_session(self.conn, otk, 1234, [self.worker("Дильшод")["id"]])  # ОТК начал приёмку
+        logic.report_defect(self.conn, 1234, self.sec("Упаковка")["id"], "Царапины", True)
+        self.assertIsNone(logic.open_session(self.conn, 1234, otk))
+        row = self.conn.execute("SELECT result, reason FROM sessions WHERE deal_id = 1234 AND section_id = ?",
+                                (otk,)).fetchone()
+        self.assertEqual(tuple(row), ("defect", "Царапины"))
+        self.assertEqual(self.deal(1234)["stage_id"], "C1:PACK")  # брак не двигает сделку дальше ОТК
+        self.assertEqual(self.ledger_sum("Дильшод"), 0)
+        self.assertNotIn(1234, logic._deal_flags(self.conn)[0])  # на табло больше не «в работе»
+
+        self.work(1234, "Упаковка", ["Алишер"])  # переделка → обратно на ОТК
+        self.assertEqual(self.deal(1234)["stage_id"], "C1:OTK")
+        res = self.work(1234, "ОТК", ["Дильшод"])
+        self.assertEqual((res["earnings"][0]["amount"], res["note"]), (150, ""))
+        self.assertEqual(self.ledger_sum("Дильшод"), 150)  # приёмка оплачена один раз
+        self.assertEqual(self.deal(1234)["stage_id"], "C1:READY")
+        self.assertEqual([s["name"] for s in logic.passed_sections(self.conn, 1234)], ["Упаковка"])
+
 
 class TestReport(ShopCase):
     def test_month_report_adjust_close(self):
@@ -408,6 +429,39 @@ class TestHttp(unittest.TestCase):
         self.assertEqual(code, 400)
         self.assertIn("закрыта", err["error"])
 
+    def test_terminal_api(self):
+        code, info = self.req("/api/info")
+        sec = {s["name"]: s["id"] for s in info["sections"]}
+        code, term = self.req(f"/api/terminal/{sec['Распил']}")
+        self.assertEqual(code, 200)
+        self.assertEqual((term["section"]["stage_id"], term["section"]["kind"]), ("C1:CUT", "regular"))
+        self.assertRegex(term["today"], r"^\d{4}-\d{2}-\d{2}$")
+        self.assertEqual(next(s for s in term["sections"] if s["name"] == "ОТК")["kind"], "otk")
+        code, d = self.req("/api/scan", {"section_id": sec["Распил"], "code": "ВП-1201"})  # русская раскладка
+        self.assertEqual((d["deal"]["id"], d["deal"]["volumes"]), (1201, ["Распил: 64 п.м."]))
+        code, d = self.req("/api/scan", {"section_id": sec["Распил"], "code": "НЕТ-ТАКОГО"})
+        self.assertEqual(d["type"], "unknown")
+        code, err = self.req("/api/terminal/9999")
+        self.assertEqual(code, 400)
+
+    def test_otk_defect_http(self):
+        code, info = self.req("/api/info")
+        sec = {s["name"]: s["id"] for s in info["sections"]}
+        code, w = self.req("/api/scan", {"section_id": sec["ОТК"], "code": "W-0005"})
+        code, st = self.req("/api/start", {"section_id": sec["ОТК"], "deal_id": 1237, "worker_ids": [w["worker"]["id"]]})
+        self.assertEqual(code, 200, st)
+        code, res = self.req("/api/defect", {"deal_id": 1237, "section_id": sec["Упаковка"], "reason": "Царапины",
+                                             "worker_fault": False, "reported_by": "Дильшод"})
+        self.assertEqual(code, 200, res)
+        self.assertIn("оплачивается", res["policy"])
+        code, term = self.req(f"/api/terminal/{sec['ОТК']}")
+        self.assertNotIn(1237, [o["deal_id"] for o in term["open"]])
+        code, term = self.req(f"/api/terminal/{sec['Упаковка']}")
+        d = next(q for q in term["queue"] if q["id"] == 1237)
+        self.assertTrue(d["rework"])
+        code, err = self.req("/api/finish", {"session_id": st["session_id"], "result": "done"})
+        self.assertEqual(code, 400)  # приёмку закрыл брак — «Готово» по ней уже не пройдёт
+
     def test_pin(self):
         code, _ = self.req("/api/admin/settings", {"admin_pin": "4321"})
         self.assertEqual(code, 200)
@@ -421,7 +475,7 @@ class TestHttp(unittest.TestCase):
         self.assertEqual(code, 200)
 
     def test_pages(self):
-        for path in ("/", "/admin", "/print", "/static/common.css", "/static/common.js", "/static/logo.png",
+        for path in ("/", "/terminal", "/admin", "/print", "/static/common.css", "/static/common.js", "/static/logo.png",
                      "/static/vendor/qrcode.js", "/static/vendor/JsBarcode.code128.min.js"):
             code, _ = self.req(path)
             self.assertEqual(code, 200, path)
