@@ -6,45 +6,39 @@
 <title>Терминал участка — DANIEL GROUP</title>
 <link rel="stylesheet" href="/static/common.css">
 <style>
-  /* Терминал смотрят с вытянутой руки и жмут пальцем в перчатке: всё крупно. */
+  /* Терминал смотрят с вытянутой руки и жмут пальцем в перчатке: всё крупно, на экране — одно действие. */
   body { font-size: 18px; }
-  .term { max-width: 1440px; margin: 0 auto; padding: 14px 16px 10px; min-height: 100vh; display: flex; flex-direction: column; }
+  .term { max-width: 860px; margin: 0 auto; padding: 14px 16px 10px; min-height: 100vh; display: flex; flex-direction: column; }
 
   .offline { position: sticky; top: 0; z-index: 40; background: var(--err); color: #fff; font-weight: 700;
     text-align: center; padding: 10px 16px; font-size: 18px; }
 
-  header.top { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; }
   .kicker { font-size: 13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
-  .sec-name { font-size: clamp(30px, 5vw, 46px); font-weight: 800; line-height: 1.05; overflow-wrap: anywhere; }
-  header.top .spacer { flex: 1 1 auto; }
-  .clock { font-size: clamp(24px, 3.4vw, 34px); font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .sec-name { font-size: clamp(30px, 5vw, 44px); font-weight: 800; line-height: 1.05; overflow-wrap: anywhere; }
+  .main { flex: 1 1 auto; display: flex; flex-direction: column; margin-top: 14px; }
 
-  .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; flex: 1 1 auto; margin-top: 14px; align-items: start; }
-  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-
-  /* Поле кода: сюда «печатает» сканер. */
-  .scanline { display: flex; gap: 8px; align-items: center; }
+  /* Поле кода: сюда «печатает» сканер. Обычно невидимо, «Ввести код» его показывает. */
+  .scanline { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
   .scanline input { flex: 1 1 auto; font: 600 22px var(--mono); padding: 12px 14px; min-height: 64px; border-width: 2px; }
   .scanline input:focus { outline: none; border-color: var(--ok); }
-  .ghost-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: 15px;
-    min-height: 64px; padding: 8px 16px; border-radius: 10px; white-space: nowrap; }
-  .ghost-btn.on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
-  @media (max-width: 480px) { .ghost-btn.kbd span { display: none; } }
+  /* Прозрачное, но нормальной ширины: в поле нулевой ширины браузер теряет место курсора. */
+  .scanline.ghost { position: fixed; top: 0; left: 0; right: 0; margin: 0; opacity: 0; pointer-events: none; z-index: -1; }
+  .scanline button { min-height: 64px; font-size: 20px; padding: 8px 22px; }
 
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
-  .chip { display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 16px; border-radius: 100px;
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 10px; padding: 4px 4px 4px 16px; border-radius: 100px;
     background: var(--accent-soft); border: 2px solid var(--accent); font-size: 20px; font-weight: 700; max-width: 100%; }
   .chip small { font-size: 14px; font-weight: 600; color: var(--text-dim); }
   .chip button { width: 56px; height: 56px; padding: 0; justify-content: center; border-radius: 50%; font-size: 26px; line-height: 1; }
-  .chips .hint { font-size: 15px; }
 
-  .panel { margin-top: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+  .panel.idle { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 52vh; }
 
-  /* Ожидание */
-  .prompt { text-align: center; padding: 26px 8px 22px; }
-  .prompt svg { width: 120px; height: 64px; color: var(--accent); }
-  .prompt-big { font-size: clamp(32px, 5.4vw, 52px); font-weight: 800; line-height: 1.1; margin-top: 10px; }
-  .prompt-sub { font-size: 19px; color: var(--text-dim); margin-top: 10px; }
+  /* Ожидание: одна надпись */
+  .prompt { text-align: center; padding: 10px 4px; }
+  .prompt svg { width: 190px; max-width: 70%; height: auto; color: var(--accent); }
+  .prompt-big { font-size: clamp(32px, 6vw, 56px); font-weight: 800; line-height: 1.1; margin-top: 18px; text-wrap: balance; }
+  .prompt-sub { font-size: 20px; color: var(--text-dim); margin-top: 10px; }
 
   /* Карточка заказа */
   .deal { border-left: 8px solid var(--border); padding: 4px 0 4px 16px; margin-bottom: 14px; }
@@ -57,6 +51,8 @@
   .deal.soon .deal-date { color: var(--soon-text); }
   .deal-client { font-size: 24px; font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
   .deal-title { font-size: 18px; color: var(--text-dim); overflow-wrap: anywhere; }
+  .task { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .task span { font-size: 20px; font-weight: 700; padding: 6px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
   .mini { font-size: 18px; color: var(--text-dim); margin-bottom: 12px; overflow-wrap: anywhere; }
   .mini b { color: var(--text); font-size: 22px; }
 
@@ -66,14 +62,23 @@
   .tag.problem { border-color: var(--late-border); color: var(--late-text); background: var(--late-bg); }
   .tag.rework { border-color: var(--soon-border); color: var(--soon-text); background: var(--soon-bg); }
   .tag.work { border-color: var(--ok); color: var(--ok); }
-  .tag.vol { font-weight: 600; }
   .tag.next { border-color: var(--accent); color: var(--accent); }
 
-  .warns { display: grid; gap: 8px; margin-bottom: 14px; }
   .warn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--soon-border); background: var(--soon-bg);
-    color: var(--text); font-size: 18px; font-weight: 600; }
+    color: var(--text); font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+  .approved { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--ok); background: var(--ok-soft);
+    font-size: 18px; margin-bottom: 14px; }
   .session-line { font-size: 20px; margin-bottom: 14px; }
-  .ask { font-size: clamp(26px, 4vw, 36px); font-weight: 800; text-align: center; padding: 18px 0; }
+  .ask { font-size: clamp(26px, 4vw, 36px); font-weight: 800; text-align: center; padding: 18px 0 6px; text-wrap: balance; }
+
+  /* Заказ не в очереди участка */
+  .away { text-align: center; padding: 6px 0; }
+  .away-num { font-size: clamp(34px, 6vw, 50px); font-weight: 800; line-height: 1.05; }
+  .away-client { font-size: 20px; color: var(--text-dim); margin-top: 4px; overflow-wrap: anywhere; }
+  .away-where { margin: 18px auto 0; padding: 16px; border-radius: 14px; background: var(--soon-bg); border: 2px solid var(--soon-border);
+    max-width: 560px; font-size: 20px; }
+  .away-where b { display: block; font-size: clamp(30px, 5vw, 42px); line-height: 1.15; margin-top: 4px; }
+  .away-text { font-size: 19px; color: var(--text-dim); margin: 14px auto 0; max-width: 560px; }
 
   /* Кнопки */
   .big-btn { width: 100%; min-height: 72px; justify-content: center; flex-direction: column; gap: 2px; text-align: center;
@@ -92,8 +97,9 @@
   .finish .btn-done, .finish .btn-defect { grid-column: 1 / -1; }
   .reasons { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
   @media (max-width: 480px) { .finish { grid-template-columns: 1fr; } }
+  .ghost-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: 18px;
+    min-height: 64px; padding: 8px 22px; border-radius: 12px; }
   .row-end { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
-  .row-end .ghost-btn { min-height: 64px; font-size: 18px; padding: 8px 22px; }
 
   .step-title { font-size: 26px; margin: 0 0 12px; line-height: 1.2; }
   .crumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
@@ -120,10 +126,25 @@
   @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .countdown { animation: none; opacity: .4; } }
 
-  /* Правая колонка: в работе и очередь */
+  /* Низ экрана: мелко, чтобы не отвлекать */
+  footer.foot { display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; font-size: 15px; color: var(--text-dim); }
+  footer.foot .spacer { flex: 1 1 auto; }
+  footer.foot a { color: var(--text-dim); padding: 8px 4px; }
+  .foot-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: 16px;
+    min-height: 56px; padding: 6px 16px; border-radius: 12px; }
+  .foot-btn b { color: var(--text); }
+  .foot-btn.on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .sync-warn { color: var(--soon-text); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--soon-border); margin-right: 6px; vertical-align: 1px; }
+
+  /* Очередь участка — отдельным экраном поверх */
+  .sheet { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; }
+  .sheet-in { max-width: 860px; margin: 0 auto; padding: 0 16px 24px; }
+  .sheet-head { position: sticky; top: 0; z-index: 1; background: var(--bg); display: flex; align-items: center; gap: 12px;
+    padding-block: 12px; border-bottom: 1px solid var(--border); }
+  .sheet-head h2 { margin: 0; font-size: 26px; flex: 1 1 auto; min-width: 0; }
   .side-h { font-size: 15px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); margin: 18px 0 8px;
     display: flex; align-items: center; gap: 8px; }
-  .side-h:first-child { margin-top: 0; }
   .side-h .count { background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 0 9px;
     font-size: 14px; color: var(--text); letter-spacing: 0; }
   .side-list { display: grid; gap: 8px; }
@@ -143,13 +164,6 @@
   .q-title { font-size: 15px; color: var(--text-dim); overflow-wrap: anywhere; }
   .q-item .tag { font-size: 13px; }
   .empty { color: var(--text-dim); font-size: 17px; padding: 10px 2px; margin: 0; }
-
-  footer.foot { display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; margin-top: 18px; padding-top: 10px;
-    border-top: 1px solid var(--border); font-size: 14px; color: var(--text-dim); }
-  footer.foot .spacer { flex: 1 1 auto; }
-  footer.foot a { color: var(--text-dim); }
-  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
-  .dot.warn { background: var(--soon-border); }
 
   /* Выбор участка */
   .pick-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
@@ -175,40 +189,45 @@
 </div>
 
 <div class="term" id="app" hidden>
-  <header class="top">
-    <div>
-      <div class="kicker" id="secKind">Участок</div>
-      <div class="sec-name" id="secName">…</div>
-    </div>
-    <div class="spacer"></div>
-    <div class="clock" id="clock"></div>
+  <header>
+    <div class="kicker" id="secKind">Участок</div>
+    <div class="sec-name" id="secName">…</div>
   </header>
 
-  <div class="layout">
-    <main>
-      <div class="scanline">
-        <input id="scan" inputmode="none" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-               enterkeyhint="go" placeholder="пикните сканером…" aria-label="Код со сканера">
-        <button class="ghost-btn kbd" id="kbd" type="button" aria-pressed="false">⌨<span> ввести вручную</span></button>
-      </div>
-      <div class="chips" id="chips" hidden></div>
-      <div class="panel" id="panel" aria-live="polite"></div>
-    </main>
-    <aside id="side"></aside>
-  </div>
+  <main class="main">
+    <div class="scanline ghost" id="scanline">
+      <input id="scan" inputmode="none" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+             enterkeyhint="go" placeholder="DG-1234 или W-0001" aria-label="Код со сканера">
+      <button type="button" class="primary" id="scanGo">OK</button>
+    </div>
+    <div class="chips" id="chips" hidden></div>
+    <div class="panel" id="panel" aria-live="polite"></div>
+  </main>
 
   <footer class="foot">
-    <span id="syncLine"></span>
+    <button type="button" class="foot-btn" id="queueBtn">Очередь участка: <b id="qCount">0</b></button>
+    <button type="button" class="foot-btn" id="kbd" aria-pressed="false">⌨ Ввести код</button>
+    <span class="sync-warn" id="syncLine"></span>
     <span class="spacer"></span>
     <a href="/terminal" id="changeSection">сменить участок</a>
   </footer>
 </div>
 
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="sheetTitle">Очередь участка</h2>
+      <button type="button" class="ghost-btn" id="sheetClose">✕ Закрыть</button>
+    </div>
+    <div id="side"></div>
+  </div>
+</div>
+
 <script src="/static/common.js"></script>
 <script>
-/* Терминал участка. Сканер работает как клавиатура: «печатает» код в поле и жмёт Enter.
-   Бейдж → титульник → «Начал»; титульник → «Готово» / «С замечанием» / «Проблема» (на ОТК ещё «Брак»).
-   Вся логика оплаты и маршрута — на сервере (logic.py), здесь только экраны. */
+/* Терминал участка. На экране одно: «Отсканируйте штрихкод или QR» — бейдж или титульник, терминал
+   разберётся сам. Заказ из очереди участка открывается сразу; заказ с другого этапа — только с бейджем
+   начальника производства. Вся логика оплаты и маршрута — на сервере (logic.py), здесь только экраны. */
 const SEC_KEY = "dg_terminal_section";
 const NO_SERVER = "Нет связи с сервером цеха";  // текст ошибки из api() в common.js
 const IDLE_MS = 60000;       // без действий — сброс бейджей и заказа
@@ -217,8 +236,9 @@ const REFRESH_MS = 15000;
 const st = {
   sectionId: null,
   T: null,          // /api/terminal/<id>
-  badges: [],       // пикнутые бейджи: {id, name, today, month}
+  badges: [],       // пикнутые бейджи: {id, name, master, today, month}
   scan: null,       // ответ /api/scan с type: "deal"
+  approval: null,   // начальник, разрешивший заказ без очереди: {id, name}
   view: "idle",     // idle | deal | remark | problem | defect | result
   pick: {},         // выбор на шагах причины и брака
   result: null,
@@ -309,6 +329,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { ke
 // Если фокус всё-таки ушёл на кнопку, символы сканера всё равно попадают в поле кода.
 document.addEventListener("keydown", (e) => {
   touch();
+  if (e.key === "Escape" && !$("sheet").hidden) { closeSheet(); return; }
   if ($("app").hidden || e.target === scanEl || typingElsewhere()) return;
   if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
@@ -317,20 +338,24 @@ document.addEventListener("keydown", (e) => {
   }
 }, true);
 
-scanEl.addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" && e.key !== "Tab") return;
+function submitField() {
   const code = scanEl.value.trim();
-  if (e.key === "Tab" && !code) return;
-  e.preventDefault();
   scanEl.value = "";
   if (st.manual) setManual(false);
   if (code) submitScan(code);
+}
+scanEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== "Tab") return;
+  if (e.key === "Tab" && !scanEl.value.trim()) return;
+  e.preventDefault();
+  submitField();
 });
+$("scanGo").addEventListener("click", submitField);
 
 function setManual(on) {
   st.manual = on;
   scanEl.setAttribute("inputmode", on ? "text" : "none");
-  scanEl.placeholder = on ? "наберите код и нажмите Enter" : "пикните сканером…";
+  $("scanline").classList.toggle("ghost", !on);
   $("kbd").classList.toggle("on", on);
   $("kbd").setAttribute("aria-pressed", String(on));
   scanEl.blur();  // экранная клавиатура появляется/прячется только при новом фокусе
@@ -358,6 +383,12 @@ function act(fn, onErr) {
   });
 }
 
+// Заказ не из очереди участка, работы по нему здесь нет и начальник ещё не разрешил.
+function awaitingApproval() {
+  const sc = st.scan;
+  return st.view === "deal" && sc && !sc.open_session && !sc.in_queue && !st.approval;
+}
+
 async function handleScan(code) {
   touch();
   let r;
@@ -369,9 +400,16 @@ async function handleScan(code) {
     fail(e.message);
     return;
   }
+  closeSheet();
   if (r.type === "worker") {
     beep(true);
-    if (!st.badges.some((b) => b.id === r.worker.id)) st.badges.push({ ...r.worker, today: r.today, month: r.month });
+    const w = { ...r.worker, today: r.today, month: r.month };
+    if (w.master && awaitingApproval()) {
+      st.approval = { id: w.id, name: w.name };
+      st.badges = st.badges.filter((b) => b.id !== w.id);
+    } else if (!st.badges.some((b) => b.id === w.id)) {
+      st.badges.push(w);
+    }
     if (st.view === "result") goIdle(true);
     renderChips();
     renderPanel();
@@ -379,6 +417,7 @@ async function handleScan(code) {
     beep(true);
     clearTimeout(resultTimer);
     st.scan = r;
+    st.approval = null;
     st.view = "deal";
     st.pick = {};
     renderPanel();
@@ -392,6 +431,7 @@ function goIdle(keepBadges) {
   clearTimeout(resultTimer);
   st.view = "idle";
   st.scan = null;
+  st.approval = null;
   st.pick = {};
   st.result = null;
   if (!keepBadges) st.badges = [];
@@ -404,6 +444,7 @@ function showResult(result, ms) {
   st.result.ms = ms;
   st.view = "result";
   st.scan = null;
+  st.approval = null;
   st.pick = {};
   st.badges = [];
   renderChips();
@@ -412,9 +453,10 @@ function showResult(result, ms) {
 }
 
 function doStart(ids) {
-  const deal = st.scan.deal;
+  const deal = st.scan.deal, approved = st.approval;
   act(async () => {
-    const r = await api("/api/start", { section_id: st.sectionId, deal_id: deal.id, worker_ids: ids });
+    const r = await api("/api/start", { section_id: st.sectionId, deal_id: deal.id, worker_ids: ids,
+                                        approved_by: approved ? approved.id : null });
     beep(true);
     showResult({ kind: "start", r, deal }, 6000);
     refresh();
@@ -498,15 +540,30 @@ $("chips").addEventListener("click", (e) => {
   renderPanel();
 });
 
+/* Очередь — отдельным экраном: на главном только «отсканируйте». Тап по заказу = скан его титульника. */
+function openSheet() { renderSide(); $("sheet").hidden = false; $("sheet").scrollTop = 0; }
+function closeSheet() { $("sheet").hidden = true; }
+$("queueBtn").addEventListener("click", openSheet);
+$("sheetClose").addEventListener("click", closeSheet);
 $("side").addEventListener("click", (e) => {
   const b = e.target.closest("[data-code]");
   if (b && !st.busy) submitScan(b.dataset.code);
 });
 
 /* ================= ЭКРАНЫ ================= */
-const BARCODE_SVG = `<svg viewBox="0 0 120 64" aria-hidden="true" fill="currentColor">${
-  [0, 6, 10, 18, 22, 30, 36, 40, 48, 54, 58, 66, 70, 78, 84, 88, 96, 102, 106, 114]
-    .map((x, i) => `<rect x="${x + 2}" y="4" width="${i % 3 === 0 ? 4 : 2}" height="56" rx="1"/>`).join("")}</svg>`;
+// Штрихкод и QR — то, что можно отсканировать.
+const SCAN_SVG = `<svg viewBox="0 0 190 80" aria-hidden="true" fill="currentColor">${
+  [0, 6, 10, 18, 22, 30, 36, 40, 48, 54, 58, 66, 70, 78, 84, 88, 96]
+    .map((x, i) => `<rect x="${x}" y="4" width="${i % 3 === 0 ? 4 : 2}" height="72" rx="1"/>`).join("")}
+  <g transform="translate(116 4)">
+    <path d="M0 0h24v24H0zM4 4v16h16V4zM48 0h24v24H48zM52 4v16h16V4zM0 48h24v24H0zM4 52v16h16V52z" fill-rule="evenodd"/>
+    <rect x="8" y="8" width="8" height="8"/><rect x="56" y="8" width="8" height="8"/><rect x="8" y="56" width="8" height="8"/>
+    <rect x="30" y="2" width="6" height="6"/><rect x="38" y="10" width="6" height="6"/><rect x="30" y="18" width="6" height="6"/>
+    <rect x="30" y="30" width="6" height="6"/><rect x="44" y="30" width="6" height="6"/><rect x="58" y="34" width="6" height="6"/>
+    <rect x="6" y="32" width="6" height="6"/><rect x="18" y="38" width="6" height="6"/><rect x="36" y="44" width="6" height="6"/>
+    <rect x="50" y="50" width="6" height="6"/><rect x="62" y="58" width="6" height="6"/><rect x="44" y="64" width="6" height="6"/>
+    <rect x="30" y="58" width="6" height="6"/><rect x="58" y="44" width="10" height="4"/>
+  </g></svg>`;
 
 function dealCard(d, showWorking) {
   const u = urgency(d.shipDate);
@@ -514,12 +571,12 @@ function dealCard(d, showWorking) {
   if (d.problem) tags.push(`<span class="tag problem">⚠ проблема: ${esc(d.problem)}</span>`);
   if (d.rework) tags.push(`<span class="tag rework">переделка</span>`);
   if (showWorking && d.working && d.working.length) tags.push(`<span class="tag work">в работе: ${esc(d.working.join(", "))}</span>`);
-  for (const v of d.volumes || []) tags.push(`<span class="tag vol">${esc(v)}</span>`);
   const showTitle = d.title && d.title !== d.client && d.title !== d.number;
   return `<div class="deal ${u}">
     <div class="deal-top"><span class="deal-num">${esc(d.number)}</span><span class="deal-date">${esc(dateLabel(d.shipDate))}</span></div>
     ${d.client ? `<div class="deal-client">${esc(d.client)}</div>` : ""}
     ${showTitle ? `<div class="deal-title">${esc(d.title)}</div>` : ""}
+    ${(d.volumes || []).length ? `<div class="task">${d.volumes.map((v) => `<span>${esc(v)}</span>`).join("")}</div>` : ""}
     ${tags.length ? `<div class="tags">${tags.join("")}</div>` : ""}
   </div>`;
 }
@@ -528,25 +585,12 @@ function miniDeal(d) {
   return `<div class="mini"><b>${esc(d.number)}</b> · ${esc(d.client || d.title)}</div>`;
 }
 
-function dealWarnings(sc) {
-  const d = sc.deal, sec = st.T.section, out = [];
-  if (d.gone) out.push("Сделка закрыта или ушла из воронки производства — уточните у мастера.");
-  else if (sec.stage_id && d.stageId !== sec.stage_id) {
-    out.push(`Заказ сейчас на стадии «${d.stageName || "без стадии"}», а не в очереди участка «${sec.name}». ` +
-             "Отметить можно — проверьте, тот ли это заказ.");
-  }
-  if (sc.rework_here) out.push("ОТК вернул заказ с браком этого участка — это переделка.");
-  return out.length ? `<div class="warns">${out.map((w) => `<div class="warn">${esc(w)}</div>`).join("")}</div>` : "";
-}
-
 function viewIdle() {
   const hasBadges = st.badges.length > 0;
   return `<div class="prompt">
-    ${BARCODE_SVG}
-    <div class="prompt-big">${hasBadges ? "Пикните титульник заказа" : "Пикните бейдж"}</div>
-    <div class="prompt-sub">${hasBadges
-      ? "Работаете вдвоём — сначала пикните второй бейдж."
-      : "Потом титульник заказа и «Начал». Закончили — пикните титульник ещё раз."}</div>
+    ${SCAN_SVG}
+    <div class="prompt-big">${hasBadges ? "Теперь отсканируйте заказ" : "Отсканируйте штрихкод или QR"}</div>
+    <div class="prompt-sub">${hasBadges ? "титульник заказа · вдвоём — сначала второй бейдж" : "бейдж или титульник заказа"}</div>
   </div>`;
 }
 
@@ -559,14 +603,33 @@ function finishButtons(dis, otk) {
   </div>`;
 }
 
+// Заказ с другого этапа: где он сейчас и чей бейдж нужен.
+function viewAway(dis) {
+  const d = st.scan.deal, sec = st.T.section;
+  const where = d.gone
+    ? `<div class="away-where">Заказ<b>закрыт или ушёл из производства</b></div>`
+    : `<div class="away-where">Заказ сейчас на этапе<b>${esc(d.stageName || "без этапа")}</b></div>`;
+  return `<div class="away">
+      <div class="away-num">${esc(d.number)}</div>
+      <div class="away-client">${esc([d.client, d.title].filter(Boolean).join(" · "))}</div>
+      ${where}
+      <div class="away-text">Это не очередь участка «${esc(sec.name)}». Начать без очереди можно только
+        с разрешения начальника производства.</div>
+      <div class="ask">Пикните бейдж начальника производства</div>
+    </div>
+    <div class="row-end"><button class="ghost-btn" data-act="cancel" ${dis}>Отмена</button></div>`;
+}
+
 function viewDeal(dis) {
   const sc = st.scan, s = sc.open_session, otk = st.T.section.kind === "otk";
-  const defectBtn = otk ? `<button class="big-btn btn-defect" data-act="defect" ${dis}>Брак<small>вернуть на участок</small></button>` : "";
-  let html = dealCard(sc.deal, !s) + dealWarnings(sc);
+  if (!s && !sc.in_queue && !st.approval) return viewAway(dis);
+  const defectBtn = otk && sc.in_queue ? `<button class="big-btn btn-defect" data-act="defect" ${dis}>Брак<small>вернуть на участок</small></button>` : "";
+  let html = dealCard(sc.deal, !s);
+  if (sc.rework_here) html += `<div class="warn">ОТК вернул заказ с браком этого участка — это переделка.</div>`;
+  if (st.approval) html += `<div class="approved">Без очереди — разрешил <b>${esc(st.approval.name)}</b></div>`;
   if (s) {
     const newcomers = st.badges.filter((b) => !s.worker_ids.includes(b.id));
-    html += `<div class="session-line">В работе с ${esc(hhmm(s.started_at))}: <b>${esc(s.workers.join(", "))}</b>
-      ${s.rework ? `<span class="tag rework">переделка</span>` : ""}</div>`;
+    html += `<div class="session-line">В работе с ${esc(hhmm(s.started_at))}: <b>${esc(s.workers.join(", "))}</b></div>`;
     if (newcomers.length) {
       html += `<div class="stack" style="margin:0 0 12px"><button class="big-btn btn-start" data-act="join" ${dis}>Присоединиться<small>${esc(names(newcomers))} — деньги поровну</small></button></div>`;
     }
@@ -574,7 +637,7 @@ function viewDeal(dis) {
   } else if (st.badges.length) {
     html += `<div class="stack"><button class="big-btn huge btn-start" data-act="start" ${dis}>Начал<small>${esc(names(st.badges))}</small></button>${defectBtn}</div>`;
   } else {
-    html += `<div class="ask">Пикните бейдж, чтобы начать</div>${defectBtn ? `<div class="stack">${defectBtn}</div>` : ""}`;
+    html += `<div class="ask">Отсканируйте свой бейдж</div>${defectBtn ? `<div class="stack">${defectBtn}</div>` : ""}`;
   }
   return html + `<div class="row-end"><button class="ghost-btn" data-act="cancel" ${dis}>Отмена</button></div>`;
 }
@@ -636,8 +699,8 @@ function viewResult() {
   let head, sub = "", body = "";
   if (R.kind === "start") {
     head = `<div class="res-head ok">${r.joined ? "Присоединились" : "Начали"}: ${esc(r.deal)}</div>`;
-    sub = `${esc(r.workers.join(", "))}${r.rework ? " · переделка" : ""}`;
-    body = `<div class="res-line">Закончите — пикните титульник ещё раз и нажмите «Готово».</div>`;
+    sub = `${esc(r.workers.join(", "))}${r.rework ? " · переделка" : ""}${r.approved_by ? ` · без очереди, разрешил ${esc(r.approved_by)}` : ""}`;
+    body = `<div class="res-line">Закончите — отсканируйте заказ ещё раз и нажмите «Готово».</div>`;
   } else if (R.kind === "defect") {
     head = `<div class="res-head bad">Брак записан: ${esc(R.deal.number)}</div>`;
     sub = `Участок «${esc(R.section.name)}» · ${esc(R.reason)} · ${R.fault ? "вина рабочего" : "не вина рабочего"}`;
@@ -648,7 +711,7 @@ function viewResult() {
   } else if (r.result === "problem") {
     head = `<div class="res-head bad">⚠ Проблема отправлена мастеру</div>`;
     sub = `${esc(r.deal)}: ${esc(R.reason)}`;
-    body = `<div class="res-line">Стадия заказа не меняется. Когда решится — пикните бейдж, титульник и «Начал».</div>`;
+    body = `<div class="res-line">Этап заказа не меняется. Когда решится — бейдж, заказ и «Начал».</div>`;
   } else {
     head = `<div class="res-head ok">✓ ${r.result === "remark" ? "Готово с замечанием" : "Готово"}: ${esc(r.deal)}</div>`;
     if (r.result === "remark") sub = esc(R.reason);
@@ -657,12 +720,12 @@ function viewResult() {
       ${r.note ? `<div class="res-note">${esc(r.note)}</div>` : ""}
       ${r.shadow && r.earnings.length ? `<div class="res-note">Теневой режим — суммы считаются, но не к выплате.</div>` : ""}
       ${r.next_stage ? `<div class="res-line">Заказ ушёл на: <b>${esc(r.next_stage)}</b></div>` : ""}
-      ${(r.warnings || []).length ? `<div class="warns" style="margin:14px 0 0">${r.warnings.map((w) => `<div class="warn">${esc(w)}</div>`).join("")}</div>` : ""}`;
+      ${(r.warnings || []).map((w) => `<div class="warn" style="margin:14px 0 0">${esc(w)}</div>`).join("")}`;
   }
-  return `<div class="result" role="button" tabindex="-1" aria-label="Вернуться к очереди">
+  return `<div class="result" role="button" tabindex="-1" aria-label="Вернуться">
     ${head}${sub ? `<div class="res-sub">${sub}</div>` : ""}${body}
     <div class="countdown" style="animation-duration:${R.ms}ms"></div>
-    <div class="res-note">Нажмите, чтобы вернуться к очереди.</div>
+    <div class="res-note">Нажмите, чтобы вернуться.</div>
   </div>`;
 }
 
@@ -670,6 +733,7 @@ function renderPanel() {
   if (!st.T) return;
   const dis = st.busy ? "disabled" : "";
   const v = { idle: viewIdle, deal: viewDeal, remark: viewRemark, problem: viewProblem, defect: viewDefect, result: viewResult }[st.view] || viewIdle;
+  $("panel").classList.toggle("idle", st.view === "idle");
   $("panel").innerHTML = v(dis);
 }
 
@@ -687,7 +751,7 @@ function queueItem(d, isNext) {
   if (d.problem) tags.push(`<span class="tag problem">⚠ проблема: ${esc(d.problem)}</span>`);
   if (d.rework) tags.push(`<span class="tag rework">переделка</span>`);
   if (d.working && d.working.length) tags.push(`<span class="tag work">в работе: ${esc(d.working.join(", "))}</span>`);
-  for (const v of d.volumes || []) tags.push(`<span class="tag vol">${esc(v)}</span>`);
+  for (const v of d.volumes || []) tags.push(`<span class="tag">${esc(v)}</span>`);
   const showTitle = d.title && d.title !== d.client && d.title !== d.number;
   return `<button type="button" class="q-item ${u}" data-code="${esc(d.number || d.id)}">
     <span class="q-top"><span class="q-num">${esc(d.number)}</span><span class="q-date">${esc(dateLabel(d.shipDate))}</span></span>
@@ -699,6 +763,7 @@ function queueItem(d, isNext) {
 
 function renderSide() {
   const T = st.T;
+  $("sheetTitle").textContent = `Очередь: ${T.section.name}`;
   let html = "";
   if (T.open.length) {
     html += `<h3 class="side-h">Сейчас в работе <span class="count">${T.open.length}</span></h3><div class="side-list">` +
@@ -709,9 +774,9 @@ function renderSide() {
       </button>`).join("") + `</div>`;
   }
   const nextId = (T.queue.find((d) => !(d.working && d.working.length)) || {}).id;
-  html += `<h3 class="side-h">Очередь участка <span class="count">${T.queue.length}</span></h3>` +
+  html += `<h3 class="side-h">По дате отгрузки <span class="count">${T.queue.length}</span></h3>` +
     (T.queue.length ? `<div class="side-list">${T.queue.map((d) => queueItem(d, d.id === nextId)).join("")}</div>`
-                    : `<p class="empty">Очередь пуста — заказов на стадии участка нет.</p>`);
+                    : `<p class="empty">Очередь пуста — заказов на этапе участка нет.</p>`);
   $("side").innerHTML = html;
 }
 
@@ -719,30 +784,25 @@ function renderHeader() {
   const sec = st.T.section;
   $("secName").textContent = sec.name;
   $("secKind").textContent = sec.kind === "otk" ? "ОТК — приёмка" : "Участок";
+  $("qCount").textContent = st.T.queue.length;
   document.title = `${sec.name} — терминал`;
 }
 
-// Битрикс — не ошибка цеха: без связи отметки копятся на сервере и уйдут позже.
+// Битрикс — не ошибка цеха: без связи отметки копятся на сервере и уйдут позже. Пока всё в порядке — молчим.
 function renderSync() {
   const s = st.T.sync || {};
-  let html;
-  if (s.error) {
-    html = `<span class="dot warn"></span>Битрикс: нет связи${s.ok_at ? " с " + esc(hhmm(s.ok_at)) : ""}` +
-      `${s.pending ? ` · ждут отправки: ${s.pending}` : ""} — работаем дальше, всё уйдёт, когда связь вернётся`;
-  } else if (s.ok_at) {
-    html = `<span class="dot"></span>Битрикс: связь есть, обновлено ${esc(hhmm(s.ok_at))}${s.pending ? ` · ждут отправки: ${s.pending}` : ""}`;
-  } else {
-    html = `<span class="dot warn"></span>Битрикс: ещё не синхронизировался${s.pending ? ` · ждут отправки: ${s.pending}` : ""}`;
-  }
-  $("syncLine").innerHTML = html;
+  $("syncLine").innerHTML = s.error
+    ? `<span class="dot"></span>Битрикс: нет связи${s.ok_at ? " с " + esc(hhmm(s.ok_at)) : ""}` +
+      `${s.pending ? ` · ждут отправки: ${s.pending}` : ""} — работаем, всё уйдёт позже`
+    : "";
 }
 
 function renderAll() {
   renderHeader();
   renderChips();
   renderPanel();
-  renderSide();
   renderSync();
+  if (!$("sheet").hidden) renderSide();
 }
 
 function setOffline(on) { $("offline").hidden = !on; }
@@ -757,14 +817,12 @@ async function refresh() {
     return;
   }
   renderHeader();
-  renderSide();
   renderSync();
+  if (!$("sheet").hidden) renderSide();
   if (st.view === "idle") renderPanel();
 }
 
 function tick() {
-  const d = new Date();
-  $("clock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
   const dirty = st.view !== "idle" || st.badges.length;
   if (dirty && st.view !== "result" && !st.busy && Date.now() - st.lastAction > IDLE_MS) goIdle();
 }
@@ -774,6 +832,7 @@ async function showPicker(err) {
   clearInterval(pollTimer);
   pollTimer = null;
   st.sectionId = null;
+  closeSheet();
   $("app").hidden = true;
   $("picker").hidden = false;
   $("pickErr").hidden = !err;
@@ -817,6 +876,7 @@ async function openSection(id) {
   if (new URLSearchParams(location.search).get("section") !== String(id)) history.replaceState(null, "", "/terminal?section=" + id);
   $("picker").hidden = true;
   $("app").hidden = false;
+  closeSheet();
   goIdle();
   renderAll();
   keepFocus();
@@ -834,7 +894,6 @@ $("changeSection").addEventListener("click", (e) => {
 });
 
 setInterval(tick, 1000);
-tick();
 const fromUrl = new URLSearchParams(location.search).get("section");
 const saved = fromUrl || lsGet(SEC_KEY);
 if (saved && /^\d+$/.test(saved)) openSection(Number(saved)); else showPicker();

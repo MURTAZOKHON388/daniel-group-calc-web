@@ -216,6 +216,8 @@ def seed(conn) -> None:
         # Материал осознанно не учитываем; «Доставку» оставляем несопоставленной — для примера в админке.
         conn.execute("INSERT INTO product_map(product_key, product_name, operation_id) VALUES('id:201', ?, NULL)",
                      (PRODUCTS[201][0],))
-        for i, (name, salary) in enumerate([("Солех", 30000), ("Иван", 30000), ("Рустам", 28000),
-                                            ("Алишер", 28000), ("Дильшод", 32000)]):
-            conn.execute("INSERT INTO workers(name, badge, salary) VALUES(?, ?, ?)", (name, f"W-{i + 1:04d}", salary))
+        people = [("Солех", 30000, 0), ("Иван", 30000, 0), ("Рустам", 28000, 0), ("Алишер", 28000, 0),
+                  ("Дильшод", 32000, 0), ("Алексей", 0, 1)]  # Алексей — начальник производства
+        for i, (name, salary, master) in enumerate(people):
+            conn.execute("INSERT INTO workers(name, badge, salary, is_master) VALUES(?, ?, ?, ?)",
+                         (name, f"W-{i + 1:04d}", salary, master))

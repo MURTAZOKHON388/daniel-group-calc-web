@@ -257,7 +257,8 @@ class Handler(BaseHTTPRequestHandler):
 
     @route("POST", r"/api/scan")
     def api_scan(self, conn, q, body):
-        section_id = _int(body.get("section_id"), "участок")
+        section = logic.get_section(conn, _int(body.get("section_id"), "участок"))
+        section_id = section["id"]
         code = str(body.get("code") or "").strip()
         if not code:
             raise logic.ShopError("Пустой код")
@@ -265,7 +266,7 @@ class Handler(BaseHTTPRequestHandler):
         if w:
             if not w["active"]:
                 raise logic.ShopError(f"{w['name']}: бейдж отключён")
-            return self._json({"type": "worker", "worker": {"id": w["id"], "name": w["name"]},
+            return self._json({"type": "worker", "worker": {"id": w["id"], "name": w["name"], "master": bool(w["is_master"])},
                                **logic.worker_totals(conn, w["id"])})
         d = logic.find_deal(conn, code)
         if not d:
@@ -279,6 +280,7 @@ class Handler(BaseHTTPRequestHandler):
                 "gone": bool(d["gone"]),
                 "volumes": logic.section_volumes(conn, d["id"], logic.section_ops(conn, section_id)),
             },
+            "in_queue": logic.in_queue(section, d),  # нет — начать можно только с бейджем начальника
             "open_session": {"session_id": s["id"], "started_at": s["started_at"], "rework": bool(s["defect_id"]),
                              "workers": [x["name"] for x in logic.session_workers(conn, s["id"])],
                              "worker_ids": [x["id"] for x in logic.session_workers(conn, s["id"])]} if s else None,
@@ -289,7 +291,11 @@ class Handler(BaseHTTPRequestHandler):
     @route("POST", r"/api/start")
     def api_start(self, conn, q, body):
         ids = [_int(x, "сотрудник") for x in body.get("worker_ids") or []]
-        res = logic.start_session(conn, _int(body.get("section_id"), "участок"), _int(body.get("deal_id"), "сделка"), ids)
+        approved = _int(body["approved_by"], "начальник") if body.get("approved_by") else None
+        res = logic.start_session(conn, _int(body.get("section_id"), "участок"), _int(body.get("deal_id"), "сделка"),
+                                  ids, approved)
+        if approved:
+            self.app.syncer.wake()
         self._json(res)
 
     @route("POST", r"/api/finish")
@@ -404,16 +410,17 @@ class Handler(BaseHTTPRequestHandler):
         badge = str(body.get("badge") or "").strip() or logic.next_badge(conn)
         salary = _num(body.get("salary") or 0, "оклад")
         active = 1 if body.get("active", True) else 0
+        master = 1 if body.get("is_master") else 0
         with db.tx(conn):
             clash = conn.execute("SELECT id FROM workers WHERE upper(badge) = upper(?)", (badge,)).fetchone()
             if clash and clash["id"] != body.get("id"):
                 raise logic.ShopError(f"Бейдж {badge} уже занят")
             if body.get("id"):
-                conn.execute("UPDATE workers SET name = ?, badge = ?, salary = ?, active = ? WHERE id = ?",
-                             (name, badge, salary, active, _int(body["id"])))
+                conn.execute("UPDATE workers SET name = ?, badge = ?, salary = ?, active = ?, is_master = ? WHERE id = ?",
+                             (name, badge, salary, active, master, _int(body["id"])))
             else:
-                conn.execute("INSERT INTO workers(name, badge, salary, active) VALUES(?, ?, ?, ?)",
-                             (name, badge, salary, active))
+                conn.execute("INSERT INTO workers(name, badge, salary, active, is_master) VALUES(?, ?, ?, ?, ?)",
+                             (name, badge, salary, active, master))
         self._json({"ok": True})
 
     @route("POST", r"/api/admin/section", auth=True)

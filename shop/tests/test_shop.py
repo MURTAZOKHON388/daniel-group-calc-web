@@ -64,8 +64,9 @@ class ShopCase(unittest.TestCase):
     def deal(self, did):
         return self.conn.execute("SELECT * FROM deals WHERE id = ?", (did,)).fetchone()
 
-    def work(self, deal_id, section, names, result="done", reason=""):
-        sid = logic.start_session(self.conn, self.sec(section)["id"], deal_id, [self.worker(n)["id"] for n in names])["session_id"]
+    def work(self, deal_id, section, names, result="done", reason="", approved_by=None):
+        sid = logic.start_session(self.conn, self.sec(section)["id"], deal_id, [self.worker(n)["id"] for n in names],
+                                  self.worker(approved_by)["id"] if approved_by else None)["session_id"]
         return logic.finish_session(self.conn, sid, result, reason)
 
     def ledger_sum(self, name=None, kind=None):
@@ -88,7 +89,7 @@ class TestScan(ShopCase):
     def test_find_worker_russian_layout(self):
         self.assertEqual(logic.find_worker(self.conn, "W-0001")["name"], "Солех")
         self.assertEqual(logic.find_worker(self.conn, "Ц-0001")["name"], "Солех")  # русская раскладка
-        self.assertEqual(logic.next_badge(self.conn), "W-0006")
+        self.assertEqual(logic.next_badge(self.conn), "W-0007")
 
     def test_product_key(self):
         self.assertEqual(logic.product_key("101", "x"), "id:101")
@@ -198,15 +199,44 @@ class TestWork(ShopCase):
 
     def test_repeat_not_paid(self):
         self.work(1201, "Распил", ["Солех"])
-        res = self.work(1201, "Распил", ["Иван"])
+        res = self.work(1201, "Распил", ["Иван"], approved_by="Алексей")  # заказ уже на кромке
         self.assertEqual(res["earnings"][0]["amount"], 0)
         self.assertIn("повторно", res["note"])
 
     def test_no_backward_move(self):
         # Сделку уже передвинули руками на упаковку, а распил только отметился.
         self.conn.execute("UPDATE deals SET stage_id = 'C1:PACK' WHERE id = 1201")
-        self.work(1201, "Распил", ["Солех"])
+        self.work(1201, "Распил", ["Солех"], approved_by="Алексей")
         self.assertEqual(self.deal(1201)["stage_id"], "C1:PACK")
+
+    def test_out_of_queue_needs_master(self):
+        edge, soleh = self.sec("Кромка")["id"], self.worker("Солех")["id"]
+        with self.assertRaises(logic.ShopError) as e:  # 1204 ещё на распиле
+            logic.start_session(self.conn, edge, 1204, [soleh])
+        self.assertIn("«Распил»", str(e.exception))
+        with self.assertRaises(logic.ShopError):  # бейдж обычного рабочего не разрешает
+            logic.start_session(self.conn, edge, 1204, [soleh], self.worker("Иван")["id"])
+        self.conn.execute("UPDATE workers SET active = 0 WHERE name = 'Алексей'")
+        with self.assertRaises(logic.ShopError):  # отключённый начальник — тоже нет
+            logic.start_session(self.conn, edge, 1204, [soleh], self.worker("Алексей")["id"])
+        self.conn.execute("UPDATE workers SET active = 1 WHERE name = 'Алексей'")
+        res = logic.start_session(self.conn, edge, 1204, [soleh], self.worker("Алексей")["id"])
+        self.assertEqual(res["approved_by"], "Алексей")
+        row = self.conn.execute("SELECT approved_by FROM sessions WHERE id = ?", (res["session_id"],)).fetchone()
+        self.assertEqual(row[0], self.worker("Алексей")["id"])
+        # Присоединиться к уже разрешённой работе можно без начальника.
+        joined = logic.start_session(self.conn, edge, 1204, [self.worker("Иван")["id"]])
+        self.assertTrue(joined["joined"])
+        sync.flush_outbox(self.conn, self.bx)
+        self.assertTrue(any("без очереди" in t["COMMENT"] and "Алексей" in t["COMMENT"] for t in self.bx.timeline))
+
+    def test_in_queue_no_master_needed(self):
+        res = logic.start_session(self.conn, self.sec("Распил")["id"], 1204, [self.worker("Солех")["id"]])
+        self.assertEqual(res["approved_by"], "")
+        self.conn.execute("UPDATE deals SET gone = 1 WHERE id = 1207")  # закрыта в Битриксе — уже не очередь
+        with self.assertRaises(logic.ShopError) as e:
+            logic.start_session(self.conn, self.sec("Распил")["id"], 1207, [self.worker("Солех")["id"]])
+        self.assertIn("закрыт", str(e.exception))
 
     def test_problem(self):
         res = self.work(1201, "Распил", ["Солех"], "problem", "Нет материала")
@@ -358,6 +388,22 @@ class TestReport(ShopCase):
         minidom.parseString(z.read("xl/worksheets/sheet1.xml"))
 
 
+class TestMigrations(unittest.TestCase):
+    def test_old_db_gets_new_columns(self):
+        conn = db.connect(":memory:")
+        conn.executescript("""CREATE TABLE workers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, badge TEXT NOT NULL UNIQUE,
+                              salary REAL NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1);
+                              CREATE TABLE sessions (id INTEGER PRIMARY KEY, deal_id INTEGER NOT NULL, section_id INTEGER NOT NULL,
+                              started_at TEXT NOT NULL, finished_at TEXT, result TEXT, reason TEXT NOT NULL DEFAULT '',
+                              comment TEXT NOT NULL DEFAULT '', defect_id INTEGER);
+                              INSERT INTO workers(name, badge) VALUES('Старый', 'W-0001');""")
+        db.init(conn)
+        db.init(conn)  # повторный запуск ничего не ломает
+        self.assertEqual(conn.execute("SELECT is_master FROM workers").fetchone()[0], 0)
+        self.assertIn("approved_by", {r[1] for r in conn.execute("PRAGMA table_info(sessions)")})
+        conn.close()
+
+
 class TestBitrixHelpers(unittest.TestCase):
     def test_webhook(self):
         self.assertEqual(normalize_webhook(" https://a.bitrix24.ru/rest/1/abc123/profile.json "),
@@ -438,7 +484,19 @@ class TestHttp(unittest.TestCase):
         self.assertRegex(term["today"], r"^\d{4}-\d{2}-\d{2}$")
         self.assertEqual(next(s for s in term["sections"] if s["name"] == "ОТК")["kind"], "otk")
         code, d = self.req("/api/scan", {"section_id": sec["Распил"], "code": "ВП-1201"})  # русская раскладка
-        self.assertEqual((d["deal"]["id"], d["deal"]["volumes"]), (1201, ["Распил: 64 п.м."]))
+        self.assertEqual((d["deal"]["id"], d["deal"]["volumes"], d["in_queue"]), (1201, ["Распил: 64 п.м."], True))
+        code, d = self.req("/api/scan", {"section_id": sec["Кромка"], "code": "DG-1210"})
+        self.assertEqual((d["in_queue"], d["deal"]["stageName"]), (False, "Распил"))
+        code, w = self.req("/api/scan", {"section_id": sec["Кромка"], "code": "W-0006"})
+        self.assertEqual(w["worker"], {"id": w["worker"]["id"], "name": "Алексей", "master": True})
+        code, err = self.req("/api/start", {"section_id": sec["Кромка"], "deal_id": 1210, "worker_ids": [1]})
+        self.assertEqual(code, 400)
+        self.assertIn("начальника", err["error"])
+        code, st = self.req("/api/start", {"section_id": sec["Кромка"], "deal_id": 1210, "worker_ids": [1],
+                                           "approved_by": w["worker"]["id"]})
+        self.assertEqual((code, st["approved_by"]), (200, "Алексей"))
+        code, _ = self.req("/api/finish", {"session_id": st["session_id"], "result": "done"})
+        self.assertEqual(code, 200)
         code, d = self.req("/api/scan", {"section_id": sec["Распил"], "code": "НЕТ-ТАКОГО"})
         self.assertEqual(d["type"], "unknown")
         code, err = self.req("/api/terminal/9999")
