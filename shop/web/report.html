@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёт по сделке — DANIEL GROUP</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .top { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+  .top h1 { margin: 0; font-size: 24px; line-height: 1.2; }
+  .top .spacer { flex: 1 1 auto; }
+  .month-pick { display: flex; gap: 6px; align-items: center; }
+  .month-pick input { width: 168px; }
+  .month-pick .arrow { width: 40px; justify-content: center; padding: 8px 0; font-size: 18px; line-height: 1; }
+  #months { width: auto; max-width: 100%; }
+  .top-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  .notes { display: grid; gap: 8px; margin-bottom: 16px; }
+  .notes .note { display: flex; align-items: center; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; }
+  .note.info { border-color: var(--border); background: var(--surface); }
+
+  .dim { color: var(--text-dim); font-size: 13px; }
+  .neg { color: var(--err); }
+  .pos { color: var(--ok); }
+  td.total, th.total { font-weight: 700; }
+  table.sum td.num, table.matrix td.num, .nowrap { white-space: nowrap; }
+  td.wrap-any { overflow-wrap: anywhere; }
+
+  /* Свод: клик по человеку — фильтр строк. Первая колонка не уезжает при прокрутке на телефоне. */
+  table.sum th[scope=row] { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); }
+  table.sum th:first-child, table.sum td:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+  table.sum tbody tr { cursor: pointer; }
+  table.sum tbody tr:hover > * { background: var(--surface-2); }
+  table.sum tbody tr.sel > * { background: var(--accent-soft); }
+  table.sum tfoot > tr > * { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--border); }
+  table.sum tfoot th { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); }
+  button.who { background: none; border: 0; padding: 0; font-weight: 700; color: inherit; text-align: left;
+    text-decoration: underline dotted var(--text-dim); text-underline-offset: 3px; }
+  tr.sel button.who { text-decoration-color: var(--accent); }
+
+  /* Строки */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .filters select { width: auto; flex: 0 1 auto; max-width: 100%; }
+  .filters input { flex: 1 1 200px; width: auto; }
+  .filters .spacer { flex: 1 1 auto; }
+  .lines-foot { display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: 14px; }
+  table.lines td { vertical-align: top; }
+  table.lines .c-act { width: 1%; white-space: nowrap; }
+  table.lines .c-date, table.lines .c-qty, table.lines .c-rate, table.lines .c-sum { white-space: nowrap; }
+  table.lines tr.muted td { color: var(--text-dim); }
+  table.lines tr.muted td b { color: var(--text-dim); }
+  table.lines tr.has-hist > td { border-bottom: 0; padding-bottom: 2px; }
+  table.lines tr.hist-row > td { padding-top: 0; }
+  .hist { font-size: 13px; color: var(--text-dim); }
+  .hist::before { content: "✎ "; }
+  s.old { color: var(--text-dim); font-weight: 400; margin-right: 4px; }
+
+  /* Брак */
+  .by-sec { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  table.matrix th[scope=row] { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); }
+  table.matrix td.hit b { color: var(--err); }
+
+  /* Окно правки */
+  .modal-back { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 60; overflow-y: auto;
+    background: rgba(0, 0, 0, .45); display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; }
+  .modal { width: 100%; max-width: 460px; display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
+  .modal h2 { margin: 0; font-size: 19px; }
+  .modal p { margin: 0; }
+  .modal .actions { margin-top: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chips button { padding: 4px 11px; font-size: 13px; border-radius: 100px; font-weight: 600; }
+  .seg { display: flex; gap: 8px; flex-wrap: wrap; }
+  .seg label { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer; font-weight: 600; }
+  .seg label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+
+  @media (max-width: 700px) {
+    .top h1 { font-size: 21px; }
+    .month-pick { flex: 1 1 100%; }
+    .month-pick input { flex: 1 1 auto; width: auto; }
+    #months { flex: 1 1 100%; }
+    .filters select { flex: 1 1 140px; }
+    .filters input { flex: 1 1 100%; }
+
+    /* Строки на телефоне — карточками, без горизонтальной прокрутки. */
+    table.lines thead { display: none; }
+    table.lines, table.lines tbody { display: block; }
+    table.lines tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 10px 0;
+      border-bottom: 1px solid var(--border); }
+    table.lines td { display: block; border: 0; padding: 0; }
+    table.lines td.num { text-align: left; }
+    table.lines .c-date { order: 1; }
+    table.lines .c-worker { order: 2; font-weight: 700; }
+    table.lines .c-sum { order: 3; margin-left: auto; text-align: right; }
+    table.lines .c-deal { order: 4; flex: 1 1 100%; }
+    table.lines .c-work { order: 5; flex: 1 1 100%; }
+    table.lines .c-work .dim { display: inline; }
+    table.lines .c-work .dim::before { content: " · "; }
+    table.lines .c-qty { order: 6; }
+    table.lines .c-rate { order: 7; }
+    table.lines .c-rate:not(:empty)::before { content: "× "; color: var(--text-dim); }
+    table.lines .c-note { order: 8; flex: 1 1 100%; }
+    table.lines .c-act { order: 9; width: auto; }
+    table.lines .c-deal .dim { display: inline; }
+    table.lines .c-deal .dim::before { content: " · "; }
+    table.lines tr.has-hist { border-bottom: 0; padding-bottom: 2px; }
+    table.lines tr.hist-row { padding-top: 0; }
+    table.lines .empty-cell { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <img src="/static/logo.png" alt="DANIEL GROUP">
+    <div>
+      <div class="brand">DANIEL GROUP</div>
+      <div class="sub">Отчёт по сделке</div>
+    </div>
+    <div class="spacer"></div>
+    <nav><a href="/">Главная</a><a href="/tablo">Табло</a><a href="/admin">Справочники</a><a href="/report" class="active">Отчёт</a></nav>
+  </header>
+
+  <div class="card">
+    <div class="top">
+      <h1 id="title">Отчёт</h1>
+      <span id="state"></span>
+      <div class="spacer"></div>
+      <div class="month-pick">
+        <button class="arrow" id="prevM" type="button" aria-label="Предыдущий месяц">‹</button>
+        <input type="month" id="month" aria-label="Месяц" placeholder="ГГГГ-ММ">
+        <button class="arrow" id="nextM" type="button" aria-label="Следующий месяц">›</button>
+      </div>
+      <select id="months" aria-label="Месяцы с данными"></select>
+    </div>
+    <div class="top-actions">
+      <button type="button" id="xlsxBtn">Скачать Excel</button>
+      <button type="button" id="closeBtn" class="primary" hidden>Закрыть месяц</button>
+    </div>
+  </div>
+
+  <div class="notes" id="notes"></div>
+  <div id="view"><div class="card">Загрузка…</div></div>
+</div>
+
+<div class="modal-back" id="modal" hidden>
+  <form class="modal" id="modalForm" role="dialog" aria-modal="true" aria-labelledby="modalTitle" novalidate>
+    <h2 id="modalTitle"></h2>
+    <div id="modalBody" style="display:grid;gap:12px"></div>
+    <div class="note err" id="modalErr" hidden></div>
+    <div class="actions">
+      <span class="spacer"></span>
+      <button type="button" id="modalCancel">Отмена</button>
+      <button type="submit" class="primary" id="modalOk">Сохранить</button>
+    </div>
+  </form>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+/* Отчёт по сделке за месяц: свод по людям, строки начислений с правками, ручные
+   строки, брак, Excel и закрытие месяца. Всё берётся из /api/report; после любой
+   правки отчёт перечитывается целиком — деньги считает только сервер. */
+const MONTH_NAMES = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август",
+  "сентябрь", "октябрь", "ноябрь", "декабрь"];
+const POLICY = {
+  unpaid: "переделка не оплачивается",
+  deduct: "вычет, переделка не оплачивается",
+  paid: "переделка оплачивается",
+};
+const FRACTIONS = { 50: "½", 33: "⅓", 25: "¼" };
+const MANUAL_HINTS = ["наладка станка", "уборка", "криволинейка", "премия", "удержание"];
+const MONTH_RX = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+let R = null;          // отчёт за месяц
+let MONTHS = [];       // месяцы с данными
+let month = monthFromUrl();
+const F = { worker: "", section: "", kind: "", q: "" };
+let loadSeq = 0;
+
+function monthFromUrl() {
+  const m = new URLSearchParams(location.search).get("month");
+  return MONTH_RX.test(m || "") ? m : null;
+}
+function monthName(m) {
+  const [y, mo] = m.split("-");
+  return MONTH_NAMES[Number(mo) - 1] + " " + y;
+}
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+function shiftMonth(m, d) {
+  const [y, mo] = m.split("-").map(Number);
+  const t = y * 12 + (mo - 1) + d;
+  return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, "0")}`;
+}
+function round2(n) { return Math.round(n * 100) / 100; }
+function rub2(n) { return fmt2(n) + " ₽"; }
+function signed(n) { return (n > 0 ? "+" : "") + rub(n); }
+function curMonth() { return R.today.slice(0, 7); }
+function isOpen() { return R && !R.closed; }
+
+async function load() {
+  const seq = ++loadSeq;
+  try {
+    // По очереди, а не разом: при PIN оба запроса спросили бы его дважды.
+    const rep = await api("/api/report" + (month ? "?month=" + month : ""));
+    const months = await api("/api/report/months");
+    if (seq !== loadSeq) return;  // пока грузили, выбрали другой месяц
+    R = rep;
+    MONTHS = months;
+    month = rep.month;
+    if (monthFromUrl() !== month) history.replaceState(null, "", "?month=" + month);
+    if (F.worker && !R.people.some((p) => String(p.worker_id) === F.worker)) F.worker = "";
+    render();
+  } catch (e) {
+    if (seq !== loadSeq) return;
+    $("view").innerHTML = `<div class="card"><div class="note err">${esc(e.message)}</div>
+      <div class="actions"><button type="button" onclick="load()">Повторить</button></div></div>`;
+  }
+}
+
+function go(m) {
+  if (!MONTH_RX.test(m || "")) { toast("Месяц — в виде ГГГГ-ММ, например 2026-10", "err"); return; }
+  if (m === month) return;
+  month = m;
+  history.pushState(null, "", "?month=" + m);
+  $("view").style.opacity = ".5";
+  load();
+}
+window.addEventListener("popstate", () => { month = monthFromUrl(); load(); });
+$("prevM").onclick = () => { if (R) go(shiftMonth(month, -1)); };
+$("nextM").onclick = () => { if (R) go(shiftMonth(month, 1)); };
+$("month").addEventListener("change", (e) => { if (e.target.value) go(e.target.value.trim()); });
+$("months").addEventListener("change", (e) => go(e.target.value));
+$("xlsxBtn").onclick = (e) => downloadXlsx(e.currentTarget);
+$("closeBtn").onclick = () => closeMonth();
+
+/* ================= ШАПКА И ПЛАШКИ ================= */
+function renderTop() {
+  const cur = curMonth();
+  $("title").textContent = cap(monthName(month));
+  document.title = `Сделка: ${monthName(month)} — DANIEL GROUP`;
+  $("state").innerHTML = R.closed ? `<span class="pill ok">закрыт</span>`
+    : month === cur ? `<span class="pill">идёт</span>`
+    : month > cur ? `<span class="pill">не наступил</span>`
+    : `<span class="pill warn">не закрыт</span>`;
+  $("month").value = month;
+  const known = MONTHS.some((x) => x.month === month);
+  $("months").innerHTML = (known ? "" : `<option value="${month}" selected>${esc(cap(monthName(month)))} · нет данных</option>`) +
+    MONTHS.map((x) => `<option value="${x.month}" ${x.month === month ? "selected" : ""}>${esc(cap(monthName(x.month)))}${
+      x.closed ? " · закрыт" : x.month === cur ? " · идёт" : ""}</option>`).join("");
+
+  const closeBtn = $("closeBtn");
+  closeBtn.hidden = R.closed;
+  closeBtn.disabled = month >= cur;
+  closeBtn.title = month >= cur ? "Закрыть можно только прошедший месяц" : "";
+
+  const notes = [];
+  if (R.shadow) notes.push(`<div class="note"><span><b>Теневой режим</b> — суммы для сравнения, не к выплате.</span></div>`);
+  if (R.closed) {
+    notes.push(`<div class="note ok"><span>Месяц закрыт ${esc(shortDate(R.closed_at))}, правки запрещены. Оклады — на момент закрытия.</span>
+      <button type="button" class="small" onclick="reopenMonth()">Открыть заново</button></div>`);
+  } else if (month === cur) {
+    notes.push(`<div class="note info"><span>Месяц идёт. Закрыть можно с 1-го числа следующего.</span></div>`);
+  } else if (month > cur) {
+    notes.push(`<div class="note info"><span>Этот месяц ещё не наступил.</span></div>`);
+  } else {
+    notes.push(`<div class="note info"><span>Месяц прошёл и не закрыт. Сверьте суммы, скачайте Excel и закройте месяц.</span></div>`);
+  }
+  $("notes").innerHTML = notes.join("");
+}
+
+function render() {
+  renderTop();
+  $("view").style.opacity = "";
+  $("view").innerHTML = viewSummary() + viewLines() + viewDefects();
+  renderLines();
+}
+
+/* ================= СВОД ================= */
+function viewSummary() {
+  const P = R.people;
+  if (!P.length) {
+    return `<div class="card"><h3 class="blk">Свод</h3><p class="note">Сотрудников нет — заведите их в «Справочниках».</p></div>`;
+  }
+  const sum = (k) => round2(P.reduce((a, p) => a + p[k], 0));
+  const deals = new Set(R.lines.filter((l) => l.kind === "piece" && l.deal_id).map((l) => l.deal_id)).size;
+  const defects = R.defects.filter((d) => d.worker_fault).length;
+  return `<div class="card">
+    <h3 class="blk">Свод</h3>
+    <p class="hint">Оклад + сделка − вычеты ± правки = итого. Нажмите на человека — ниже останутся только его строки.</p>
+    <div class="table-wrap"><table class="sum" id="sumTable">
+      <thead><tr><th>Сотрудник</th><th class="num">Оклад</th><th class="num">Сделка</th><th class="num">Вычеты за брак</th>
+        <th class="num">Правки и ручные</th><th class="num total">Итого</th><th class="num">Заказов</th><th class="num">Браков</th></tr></thead>
+      <tbody>${P.map((p) => `<tr data-worker="${p.worker_id}" class="${String(p.worker_id) === F.worker ? "sel" : ""}">
+        <th scope="row"><button type="button" class="who">${esc(p.name)}</button></th>
+        <td class="num">${rub(p.salary)}</td>
+        <td class="num">${rub(p.piece)}</td>
+        <td class="num ${p.defect < 0 ? "neg" : ""}">${p.defect ? rub(p.defect) : "—"}</td>
+        <td class="num">${p.adjust ? signed(p.adjust) : "—"}</td>
+        <td class="num total">${rub(p.total)}</td>
+        <td class="num">${p.deals || "—"}</td>
+        <td class="num ${p.defects ? "neg" : ""}">${p.defects || "—"}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><th scope="row">Итого по цеху</th>
+        <td class="num">${rub(sum("salary"))}</td><td class="num">${rub(sum("piece"))}</td>
+        <td class="num">${sum("defect") ? rub(sum("defect")) : "—"}</td><td class="num">${sum("adjust") ? signed(sum("adjust")) : "—"}</td>
+        <td class="num total">${rub(sum("total"))}</td><td class="num">${deals || "—"}</td><td class="num">${defects || "—"}</td></tr></tfoot>
+    </table></div>
+  </div>`;
+}
+
+document.addEventListener("click", (e) => {
+  const tr = e.target.closest("#sumTable tbody tr[data-worker]");
+  if (!tr) return;
+  F.worker = F.worker === tr.dataset.worker ? "" : tr.dataset.worker;
+  $("fWorker").value = F.worker;
+  renderLines();
+  if (F.worker) {
+    const card = $("linesCard");
+    if (card.getBoundingClientRect().top > window.innerHeight * 0.6) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+
+/* ================= СТРОКИ ================= */
+function viewLines() {
+  const secs = new Map();
+  for (const l of R.lines) if (l.section_id && l.kind !== "adjust") secs.set(l.section_id, l.section);
+  const opt = (v, label, cur) => `<option value="${esc(v)}" ${String(v) === cur ? "selected" : ""}>${esc(label)}</option>`;
+  return `<div class="card" id="linesCard">
+    <h3 class="blk">Строки</h3>
+    <div class="filters">
+      <select id="fWorker" aria-label="Сотрудник">${opt("", "Все сотрудники", F.worker)}${R.people.map((p) => opt(p.worker_id, p.name, F.worker)).join("")}</select>
+      <select id="fSection" aria-label="Участок">${opt("", "Все участки", F.section)}${[...secs.entries()].sort((a, b) => a[0] - b[0])
+        .map(([, name]) => opt(name, name, F.section)).join("")}</select>
+      <select id="fKind" aria-label="Вид">${opt("", "Все виды", F.kind)}${opt("piece", "Сделка", F.kind)}${opt("defect", "Вычеты за брак", F.kind)}${
+        opt("manual", "Ручные", F.kind)}${opt("adjusted", "С правками", F.kind)}</select>
+      <input id="fQ" type="search" placeholder="Заказ, клиент или примечание" value="${esc(F.q)}" aria-label="Поиск">
+      ${isOpen() ? `<span class="spacer"></span><button type="button" onclick="manualDialog()">+ Ручная строка</button>` : ""}
+    </div>
+    <div id="linesBody"></div>
+  </div>`;
+}
+
+function onFilter(e) {
+  const map = { fWorker: "worker", fSection: "section", fKind: "kind", fQ: "q" };
+  if (!map[e.target.id] || F[map[e.target.id]] === e.target.value) return;
+  F[map[e.target.id]] = e.target.value;
+  renderLines();
+}
+document.addEventListener("input", onFilter);
+document.addEventListener("change", onFilter);  // старые браузеры не шлют input у select
+
+function adjustsByRef() {
+  const out = {};
+  for (const l of R.lines) if (l.kind === "adjust" && l.ref_id) (out[l.ref_id] = out[l.ref_id] || []).push(l);
+  return out;
+}
+
+function visibleLines() {
+  const q = F.q.trim().toLowerCase();
+  return R.lines.filter((l) => {
+    if (l.kind === "adjust") return false;  // правки показываем под исходной строкой
+    if (F.worker && String(l.worker_id) !== F.worker) return false;
+    if (F.section && l.section !== F.section) return false;
+    if (F.kind === "adjusted" ? !l.adjusted : F.kind && l.kind !== F.kind) return false;
+    if (q && !`${l.deal_number || ""} ${l.client || ""} ${l.note || ""}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function volume(l) {
+  if (!l.qty) return "";
+  const q = `${fmt2(l.qty)} ${l.unit || ""}`.trim();
+  if (!l.share || l.share >= 0.999) return esc(q);
+  const p = Math.round(l.share * 100);
+  return FRACTIONS[p] ? `${FRACTIONS[p]} от ${esc(q)}` : `доля ${p} % от ${esc(q)}`;
+}
+
+function lineRow(l, hist) {
+  const eff = round2(l.amount + (l.adjusted || 0));
+  const muted = Math.abs(eff) < 0.005 && l.note;
+  const deal = l.kind === "manual" ? `<span class="pill">ручная строка</span>`
+    : l.deal_number ? `<b class="nowrap">${esc(l.deal_number)}</b>${l.client ? `<div class="dim">${esc(l.client)}</div>` : ""}` : "—";
+  const work = l.section ? `${esc(l.section)}${l.operation && l.operation !== l.section ? `<div class="dim">${esc(l.operation)}</div>` : ""}` : "";
+  const sumHtml = hist.length ? `<s class="old">${rub2(l.amount)}</s><b>${rub2(eff)}</b>`
+    : `<span class="${eff < 0 ? "neg" : ""}">${rub2(eff)}</span>`;
+  const note = [l.partners && l.partners.length ? `с ${esc(l.partners.join(", "))}` : "",
+    l.kind === "defect" ? `<span class="pill err">вычет</span>` : "", esc(l.note)].filter(Boolean).join(" · ");
+  const canEdit = isOpen();
+  let html = `<tr class="${muted ? "muted" : ""} ${hist.length ? "has-hist" : ""}">
+    <td class="c-date">${esc(shortTs(l.created_at))}</td>
+    <td class="c-worker">${esc(l.worker)}</td>
+    <td class="c-deal wrap-any">${deal}</td>
+    <td class="c-work${work ? "" : " empty-cell"}">${work}</td>
+    <td class="num c-qty${l.qty ? "" : " empty-cell"}">${volume(l)}</td>
+    <td class="num c-rate${l.rate ? "" : " empty-cell"}">${l.rate ? rub2(l.rate) : ""}</td>
+    <td class="num c-sum">${sumHtml}</td>
+    <td class="c-note wrap-any${note ? "" : " empty-cell"}">${note}</td>
+    <td class="c-act${canEdit ? "" : " empty-cell"}">${canEdit ? `<button type="button" class="small" onclick="adjustDialog(${l.id})">Править</button>` : ""}</td>
+  </tr>`;
+  if (hist.length) {
+    let run = l.amount;
+    html += `<tr class="hist-row"><td colspan="9">${hist.map((a) => {
+      const from = run;
+      run = round2(run + a.amount);
+      return `<div class="hist">было ${fmt2(from)} → стало <b>${fmt2(run)}</b> · ${esc(a.note)} <span class="dim">${esc(shortTs(a.created_at))}</span></div>`;
+    }).join("")}</td></tr>`;
+  }
+  return html;
+}
+
+function renderLines() {
+  for (const tr of document.querySelectorAll("#sumTable tbody tr")) tr.classList.toggle("sel", tr.dataset.worker === F.worker);
+  const body = $("linesBody");
+  if (!body) return;
+  const rows = visibleLines();
+  const adj = adjustsByRef();
+  const total = round2(rows.reduce((a, l) => a + l.amount + (l.adjusted || 0), 0));
+  const filtered = F.worker || F.section || F.kind || F.q.trim();
+  if (!rows.length) {
+    body.innerHTML = `<p class="note info">${R.lines.length ? "По фильтрам строк нет." : "Начислений за этот месяц нет."}</p>
+      ${filtered ? `<div class="actions"><button type="button" class="small" onclick="resetFilters()">Сбросить фильтры</button></div>` : ""}`;
+    return;
+  }
+  body.innerHTML = `<div class="table-wrap"><table class="lines">
+      <thead><tr><th>Дата</th><th>Сотрудник</th><th>Заказ</th><th>Участок, операция</th><th class="num">Объём</th>
+        <th class="num">Ставка</th><th class="num">Сумма</th><th>Напарники, примечание</th><th></th></tr></thead>
+      <tbody>${rows.map((l) => lineRow(l, adj[l.id] || [])).join("")}</tbody>
+    </table></div>
+    <div class="lines-foot"><span>Строк: <b>${rows.length}</b> · сумма: <b>${rub2(total)}</b></span>
+      ${filtered ? `<button type="button" class="small" onclick="resetFilters()">Сбросить фильтры</button>` : ""}</div>`;
+}
+
+function resetFilters() {
+  Object.assign(F, { worker: "", section: "", kind: "", q: "" });
+  for (const id of ["fWorker", "fSection", "fKind", "fQ"]) if ($(id)) $(id).value = "";
+  renderLines();
+}
+
+/* ================= БРАК ================= */
+function viewDefects() {
+  const M = R.defect_matrix || [];
+  const D = R.defects;
+  let matrix = `<p class="note ok">Браков по вине рабочего в этом месяце нет.</p>`;
+  if (M.length) {
+    // Колонки — участки с браком, строки — все, кто брак допустил или делал эти участки в месяце:
+    // «0 из 9» рядом с «2 из 7» и есть сравнение по участку.
+    const secs = [];
+    for (const m of M) if (!secs.some((s) => s.id === m.section_id)) secs.push({ id: m.section_id, name: m.section });
+    const done = {};
+    const names = {};
+    for (const m of M) names[m.worker_id] = m.worker;
+    for (const l of R.lines) {
+      if (l.kind !== "piece" || !l.deal_id || !secs.some((s) => s.id === l.section_id)) continue;
+      const k = l.worker_id + ":" + l.section_id;
+      (done[k] = done[k] || new Set()).add(l.deal_id);
+      names[l.worker_id] = l.worker;
+    }
+    const count = (w, s) => { const m = M.find((x) => x.worker_id === w && x.section_id === s); return m ? m.count : 0; };
+    const people = Object.keys(names).map(Number).sort((a, b) => names[a].localeCompare(names[b], "ru"));
+    matrix = `<div class="table-wrap"><table class="matrix">
+      <thead><tr><th>Сотрудник</th>${secs.map((s) => `<th class="num">${esc(s.name)}</th>`).join("")}<th class="num">Всего</th></tr></thead>
+      <tbody>${people.map((w) => {
+        let all = 0;
+        const cells = secs.map((s) => {
+          const n = count(w, s.id), of = done[w + ":" + s.id] ? done[w + ":" + s.id].size : 0;
+          all += n;
+          if (!n && !of) return `<td class="num dim">—</td>`;
+          return `<td class="num ${n ? "hit" : ""}"><b>${n}</b>${of ? ` <span class="dim">из ${of}</span>` : ""}</td>`;
+        }).join("");
+        return `<tr><th scope="row">${esc(names[w])}</th>${cells}<td class="num total">${all || "—"}</td></tr>`;
+      }).join("")}</tbody>
+    </table></div>`;
+  }
+  const bySec = Object.entries(R.defects_by_section || {});
+  return `<div class="card">
+    <h3 class="blk">Брак по вине рабочего</h3>
+    <p class="hint">Сколько раз ОТК вернул заказ по вине человека. «1 из 12» — один брак на 12 заказов, которые он сделал
+      на этом участке за месяц. Брак плиты и ошибки УП («не вина рабочего») сюда не входят.</p>
+    ${matrix}
+    <h3 class="blk">Все браки за месяц</h3>
+    ${D.length ? `${bySec.length ? `<div class="by-sec">${bySec.map(([s, n]) => `<span class="pill">${esc(s)}: ${n}</span>`).join("")}</div>` : ""}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Дата</th><th>Заказ</th><th>Участок</th><th>Причина</th><th>Вина рабочего</th><th>Кто делал</th><th>Политика</th><th>Переделано</th></tr></thead>
+      <tbody>${D.map((d) => `<tr>
+        <td style="white-space:nowrap">${esc(shortTs(d.reported_at))}</td>
+        <td class="nowrap"><b>${esc(d.deal_number || "—")}</b></td>
+        <td>${esc(d.section || "—")}</td>
+        <td>${esc(d.reason)}</td>
+        <td>${d.worker_fault ? `<span class="pill err">да</span>` : `<span class="pill">нет</span>`}</td>
+        <td>${esc(d.workers || "нет отметок")}</td>
+        <td>${esc(POLICY[d.policy] || d.policy)}</td>
+        <td style="white-space:nowrap">${d.resolved_at ? esc(shortTs(d.resolved_at)) : `<span class="pill warn">ещё нет</span>`}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>` : `<p class="note ok">Браков за месяц нет.</p>`}
+  </div>`;
+}
+
+/* ================= ОКНО ================= */
+let modalSubmit = null;
+let modalBack = null;
+function openModal(title, body, okLabel, onSubmit) {
+  modalBack = document.activeElement;
+  $("modalTitle").textContent = title;
+  $("modalBody").innerHTML = body;
+  $("modalOk").textContent = okLabel;
+  $("modalOk").disabled = false;
+  $("modalErr").hidden = true;
+  modalSubmit = onSubmit;
+  $("modal").hidden = false;
+  const first = $("modalBody").querySelector("[data-focus]") || $("modalBody").querySelector("input, select");
+  if (first) { first.focus(); if (first.select) first.select(); }
+}
+function closeModal() {
+  $("modal").hidden = true;
+  modalSubmit = null;
+  if (modalBack && document.body.contains(modalBack)) modalBack.focus();
+}
+function modalError(msg) {
+  $("modalErr").textContent = msg;
+  $("modalErr").hidden = false;
+}
+$("modalCancel").onclick = closeModal;
+$("modal").addEventListener("mousedown", (e) => { if (e.target === $("modal")) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("modal").hidden) closeModal(); });
+$("modalForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!modalSubmit) return;
+  $("modalOk").disabled = true;
+  $("modalErr").hidden = true;
+  try {
+    const msg = await modalSubmit();
+    if (msg === false) { $("modalOk").disabled = false; return; }  // проверка не прошла, ошибка уже показана
+    closeModal();
+    if (msg) toast(msg);
+    await load();
+  } catch (err) {
+    modalError(err.message);
+    $("modalOk").disabled = false;
+  }
+});
+
+function parseAmount(s) {
+  const v = String(s || "").replace(/[\s ₽]/g, "").replace(",", ".").replace("−", "-");
+  return v === "" || isNaN(Number(v)) ? null : Number(v);
+}
+
+function adjustDialog(id) {
+  const l = R.lines.find((x) => x.id === id);
+  if (!l || !isOpen()) return;
+  const eff = round2(l.amount + (l.adjusted || 0));
+  const what = [l.worker, l.deal_number, l.operation || (l.kind === "manual" ? "ручная строка" : "")].filter(Boolean).join(" · ");
+  openModal("Править строку", `
+    <p><b>${esc(what)}</b></p>
+    <p class="hint">Начислено ${rub2(l.amount)}${l.adjusted ? `, после правок — ${rub2(eff)}` : ""}. Исходная строка не меняется:
+      в отчёт добавится правка на разницу с вашей причиной.</p>
+    <div class="field"><label for="mAmount">Новая сумма строки, ₽</label>
+      <input id="mAmount" inputmode="decimal" autocomplete="off" value="${esc(String(eff))}" data-focus></div>
+    <div class="field"><label for="mNote">Причина — обязательно</label>
+      <input id="mNote" autocomplete="off" maxlength="200" placeholder="Например, переделывал торцы"></div>`,
+  "Сохранить правку", async () => {
+    const amount = parseAmount($("mAmount").value), note = $("mNote").value.trim();
+    if (amount === null) { modalError("Введите сумму числом"); return false; }
+    if (!note) { modalError("Укажите причину правки"); $("mNote").focus(); return false; }
+    if (round2(amount) === eff) { modalError("Сумма не изменилась"); return false; }
+    await api("/api/report/adjust", { ledger_id: id, amount, note });
+    return `Правка сохранена: ${rub2(eff)} → ${rub2(amount)}`;
+  });
+}
+
+function manualDialog() {
+  if (!isOpen()) return;
+  const sel = R.workers.some((w) => String(w.id) === F.worker) ? F.worker : "";
+  openModal("Ручная строка", `
+    <p class="hint">Работа без заказа (наладка, уборка, криволинейка), премия или удержание за ${esc(monthName(month))}.</p>
+    <div class="field"><label for="mWorker">Сотрудник</label>
+      <select id="mWorker" data-focus>${sel ? "" : `<option value="">— выберите —</option>`}${R.workers.map((w) =>
+        `<option value="${w.id}" ${String(w.id) === sel ? "selected" : ""}>${esc(w.name)}</option>`).join("")}</select></div>
+    <div class="seg" role="radiogroup" aria-label="Начисление или удержание">
+      <label><input type="radio" name="mSign" value="1" checked> Начислить</label>
+      <label><input type="radio" name="mSign" value="-1"> Удержать</label></div>
+    <div class="field"><label for="mAmount">Сумма, ₽</label><input id="mAmount" inputmode="decimal" autocomplete="off" placeholder="0"></div>
+    <div class="field"><label for="mNote">За что</label><input id="mNote" autocomplete="off" maxlength="200" placeholder="Например, наладка станка">
+      <div class="chips">${MANUAL_HINTS.map((h) => `<button type="button" data-hint="${esc(h)}">${esc(h)}</button>`).join("")}</div></div>`,
+  "Добавить", async () => {
+    const wid = $("mWorker").value, v = parseAmount($("mAmount").value), note = $("mNote").value.trim();
+    const sign = Number(document.querySelector("input[name=mSign]:checked").value);
+    if (!wid) { modalError("Выберите сотрудника"); return false; }
+    if (!v) { modalError("Введите сумму числом"); $("mAmount").focus(); return false; }
+    if (!note) { modalError("Укажите, за что"); $("mNote").focus(); return false; }
+    const amount = v < 0 ? v : sign * v;
+    await api("/api/report/manual", { month, worker_id: Number(wid), amount, note });
+    return `Добавлено: ${signed(amount)}`;
+  });
+}
+$("modalBody").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-hint]");
+  if (!b) return;
+  $("mNote").value = b.dataset.hint;
+  const sign = document.querySelector(`input[name=mSign][value="${b.dataset.hint === "удержание" ? -1 : 1}"]`);
+  if (sign) sign.checked = true;
+  $("mAmount").focus();
+});
+
+/* ================= EXCEL И ЗАКРЫТИЕ ================= */
+async function downloadXlsx(btn) {
+  btn.disabled = true;
+  try {
+    // PIN идёт заголовком — обычная ссылка его не передаст, поэтому качаем сами.
+    const r = await api(`/api/report/xlsx?month=${month}`, undefined, true);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sdelka_${month}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function act(path, okMsg) {
+  try {
+    await api(path, { month });
+    toast(okMsg);
+    await load();
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+function closeMonth() {
+  if (!confirm(`Закрыть ${monthName(month)}?\n\nПосле закрытия правки запрещены, оклады зафиксируются.`)) return;
+  act("/api/report/close", `${cap(monthName(month))} закрыт`);
+}
+function reopenMonth() {
+  if (!confirm(`Открыть ${monthName(month)} заново?\n\nПравки снова станут возможны, оклады будут браться из справочника до следующего закрытия.`)) return;
+  act("/api/report/reopen", `${cap(monthName(month))} открыт заново`);
+}
+
+load();
+</script>
+</body>
+</html>

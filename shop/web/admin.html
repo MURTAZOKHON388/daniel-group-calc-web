@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Справочники цеха — DANIEL GROUP</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 18px; margin-bottom: 14px; }
+  .status-grid .v { font-weight: 600; }
+  .stage-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 14px; }
+  .ops { margin-top: 12px; }
+  .ops td:nth-child(1) { min-width: 160px; }
+  .ops td:nth-child(2) { width: 90px; }
+  .ops td:nth-child(3) { width: 110px; }
+  .w-num { width: 110px; }
+  .w-badge { width: 130px; }
+  .key { color: var(--text-dim); font-size: 12px; font-family: var(--mono); }
+  .policy { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+  .policy input { margin-top: 4px; }
+  .policy .hint { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <img src="/static/logo.png" alt="DANIEL GROUP">
+    <div>
+      <div class="brand">DANIEL GROUP</div>
+      <div class="sub">Справочники цеха</div>
+    </div>
+    <div class="spacer"></div>
+    <nav><a href="/">Главная</a><a href="/tablo">Табло</a><a href="/admin" class="active">Справочники</a><a href="/report">Отчёт</a></nav>
+  </header>
+
+  <div class="note" id="demoNote" hidden style="margin-bottom:14px">
+    Демо-режим: Битрикс поддельный, база пересоздаётся при каждом запуске. Можно смело всё менять.
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="view"><div class="card">Загрузка…</div></div>
+</div>
+<script src="/static/common.js"></script>
+<script>
+/* Справочники: подключение к Битриксу, люди, участки и ставки, товары, режимы, печать.
+   Состояние целиком берём из /api/admin/state и перерисовываем вкладку после каждого сохранения. */
+const TABS = [
+  ["now", "Сейчас в цеху"],
+  ["bitrix", "Битрикс"],
+  ["people", "Люди"],
+  ["sections", "Участки и ставки"],
+  ["products", "Товары сделки"],
+  ["modes", "Режимы"],
+  ["print", "Печать"],
+];
+let S = null;
+let tab = "bitrix";
+try { tab = localStorage.getItem("dg_admin_tab") || tab; } catch (e) { /* без памяти */ }
+let pickedCategory = null;   // выбранная, но ещё не сохранённая воронка
+let dealsCache = null;
+
+async function load() {
+  try {
+    S = await api("/api/admin/state");
+  } catch (e) {
+    $("view").innerHTML = `<div class="card note err">${esc(e.message)}</div>`;
+    return;
+  }
+  $("demoNote").hidden = !S.demo;
+  render();
+}
+
+function setTab(t) {
+  tab = t;
+  try { localStorage.setItem("dg_admin_tab", t); } catch (e) { /* без памяти */ }
+  render();
+}
+
+function render() {
+  const unmapped = S.products.filter((p) => !p.mapped).length;
+  const badge = { now: S.problems.length, products: unmapped, bitrix: S.sync.failed.length + (S.sync.error ? 1 : 0) };
+  $("tabs").innerHTML = TABS.map(([id, name]) =>
+    `<div class="tab ${id === tab ? "active" : ""}" data-tab="${id}">${esc(name)}${badge[id] ? `<span class="dot">${badge[id]}</span>` : ""}</div>`
+  ).join("");
+  const fn = { now: viewNow, bitrix: viewBitrix, people: viewPeople, sections: viewSections, products: viewProducts, modes: viewModes, print: viewPrint }[tab] || viewBitrix;
+  $("view").innerHTML = fn();
+  if (tab === "print") loadDeals();
+}
+$("tabs").addEventListener("click", (e) => { const t = e.target.closest("[data-tab]"); if (t) setTab(t.dataset.tab); });
+
+async function save(path, body, okMsg) {
+  try {
+    await api(path, body);
+    toast(okMsg || "Сохранено");
+    await load();
+    return true;
+  } catch (e) {
+    toast(e.message, "err");
+    return false;
+  }
+}
+
+/* ================= СЕЙЧАС В ЦЕХУ ================= */
+function viewNow() {
+  const open = S.open_sessions, probs = S.problems;
+  return `<div class="card">
+    <h3 class="blk">Открытые работы</h3>
+    <p class="hint">Кто нажал «Начал» и ещё не закрыл. Если рабочий начал не тот заказ или ушёл, не нажав «Готово», —
+      отмените: денег не начислится, сделка останется на месте, участок сможет начать заново.</p>
+    ${open.length ? `<div class="table-wrap"><table>
+      <tr><th>Начато</th><th>Заказ</th><th>Участок</th><th>Кто</th><th></th></tr>
+      ${open.map((x) => `<tr><td>${esc(shortTs(x.started_at))}</td><td><b>${esc(x.number)}</b></td><td>${esc(x.section)}</td>
+        <td>${esc(x.workers.join(", "))}</td>
+        <td><button class="small danger" onclick="cancelSession(${x.id}, this)">Отменить</button></td></tr>`).join("")}
+    </table></div>` : `<p class="note ok">Сейчас никто не работает по заказам.</p>`}
+  </div>
+  <div class="card">
+    <h3 class="blk">Заказы с пометкой «Проблема»</h3>
+    <p class="hint">Пометка видна на табло и терминале и снимается сама, когда участок снова нажмёт «Начал».
+      Если вопрос решён иначе — снимите вручную.</p>
+    ${probs.length ? `<div class="table-wrap"><table>
+      <tr><th>Заказ</th><th>Клиент</th><th>Проблема</th><th></th></tr>
+      ${probs.map((d) => `<tr class="attn"><td><b>${esc(d.number)}</b></td><td>${esc(d.client)}</td><td>${esc(d.problem)}</td>
+        <td><button class="small" onclick="clearProblem(${d.id})">Снять</button></td></tr>`).join("")}
+    </table></div>` : `<p class="note ok">Проблем нет.</p>`}
+    <div class="actions"><button onclick="load()">Обновить</button></div>
+  </div>`;
+}
+function cancelSession(id, btn) {
+  const row = btn.closest("tr").querySelectorAll("td");
+  if (!confirm(`Отменить работу ${row[1].textContent} на участке «${row[2].textContent}»? Денег за неё не начислится.`)) return;
+  save("/api/admin/session/cancel", { session_id: id }, "Работа отменена");
+}
+function clearProblem(id) { save("/api/admin/deal/clear_problem", { deal_id: id }, "Пометка снята"); }
+
+/* ================= БИТРИКС ================= */
+function stagesFor(cat) {
+  const m = S.meta || {};
+  return (m.stages && m.stages[cat]) || (String(cat) === String(S.settings.category_id) ? S.stages : []) || [];
+}
+function stageOptions(stages, selected, emptyLabel) {
+  return `<option value="">${esc(emptyLabel || "— не выбрано —")}</option>` +
+    stages.map((s) => `<option value="${esc(s.id)}" ${s.id === selected ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+}
+
+function viewBitrix() {
+  const st = S.settings, sy = S.sync, meta = S.meta || {};
+  const connected = !!st.webhook_masked;
+  const cat = pickedCategory != null ? pickedCategory : String(st.category_id);
+  const stages = stagesFor(cat);
+  const boardSel = st.board_stages || [];
+  const hasMeta = meta.categories && meta.categories.length;
+  const users = meta.users || [];
+  return `
+  <div class="card">
+    <h3 class="blk">Состояние</h3>
+    <div class="status-grid">
+      <div><div class="lbl">Вебхук</div><div class="v mono">${connected ? esc(st.webhook_masked) : "не подключён"}</div></div>
+      <div><div class="lbl">Последняя успешная синхронизация</div><div class="v">${esc(shortTs(sy.ok_at))}</div></div>
+      <div><div class="lbl">Ждут отправки в Битрикс</div><div class="v">${sy.pending}</div></div>
+      <div><div class="lbl">Открытых сделок в воронке</div><div class="v">${fmt(S.deals_count)}</div></div>
+    </div>
+    ${sy.error ? `<div class="note err">${esc(sy.error)}</div>` : connected ? `<div class="note ok">Связь с Битриксом в порядке.</div>` : ""}
+    <div class="actions"><button onclick="syncNow(this)" ${connected ? "" : "disabled"}>Синхронизировать сейчас</button></div>
+    ${sy.failed.length ? `
+      <h3 class="blk">Не отправилось в Битрикс</h3>
+      <p class="hint">Битрикс отклонил запрос 5 раз подряд. Проверьте причину и повторите или уберите запись.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Когда</th><th>Что</th><th>Сделка</th><th>Ошибка</th><th></th></tr>
+        ${sy.failed.map((f) => `<tr><td>${esc(shortTs(f.created_at))}</td><td class="mono">${esc(f.method)}</td>
+          <td>${esc(f.deal_id || "")}</td><td>${esc(f.last_error)}</td>
+          <td><button class="small" onclick="outbox(${f.id},'retry')">Повторить</button>
+              <button class="small danger" onclick="outbox(${f.id},'drop')">Убрать</button></td></tr>`).join("")}
+      </table></div>` : ""}
+  </div>
+
+  <div class="card">
+    <h3 class="blk">Подключение</h3>
+    <p class="hint">В Битрикс24: «Разработчикам» → «Другое» → «Входящий вебхук». Права: <b>CRM</b>, <b>Уведомления (im)</b>,
+      <b>Пользователи (user)</b>. Адрес вебхука — это ключ: вставьте его сюда и никому не пересылайте. Он хранится
+      только на этом сервере, планшетам и ТВ не нужен.</p>
+    <div class="row">
+      <input class="grow" id="webhook" type="password" autocomplete="off" spellcheck="false"
+             placeholder="https://ваш-портал.bitrix24.ru/rest/1/xxxxxxxxxxxx/">
+      <button class="primary" onclick="connect(this)">${connected ? "Заменить" : "Подключить"}</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="blk">Сделки</h3>
+    ${hasMeta ? "" : `<p class="note">Сначала подключите вебхук — списки воронок и полей подтянутся из Битрикса.</p>`}
+    <div class="grid">
+      <div class="field"><label for="cfgCat">Воронка производства</label>
+        <select id="cfgCat" onchange="pickedCategory=this.value; render()" ${hasMeta ? "" : "disabled"}>
+          ${(meta.categories || []).map((c) => `<option value="${esc(c.id)}" ${c.id === cat ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label for="cfgShip">Поле с датой отгрузки</label>
+        <select id="cfgShip" ${hasMeta ? "" : "disabled"}>
+          <option value="">— не выбрано —</option>
+          ${(meta.date_fields || []).map((f) => `<option value="${esc(f.code)}" ${f.code === st.ship_field ? "selected" : ""}>${esc(f.label)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label for="cfgTpl">Номер заказа на титульнике и в QR</label>
+        <input id="cfgTpl" value="${esc(st.number_tpl)}" placeholder="DG-{ID}">
+        <span class="hint">{ID} — номер сделки в Битриксе. Можно код поля: ${(meta.other_fields || []).slice(0, 3).map((f) => `{${esc(f.code)}} — ${esc(f.label)}`).join(", ") || "{UF_CRM_…}"}</span></div>
+      <div class="field"><label for="cfgFinal">Стадия после последнего участка</label>
+        <select id="cfgFinal">${stageOptions(stages, st.final_stage_id, "— не двигать —")}</select></div>
+      <div class="field"><label for="cfgNotify">Кому приходит «Проблема» (Алексей)</label>
+        ${users.length
+          ? `<select id="cfgNotify"><option value="">— никому —</option>${users.map((u) => `<option value="${esc(u.id)}" ${u.id === String(st.notify_user_id) ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select>`
+          : `<input id="cfgNotify" value="${esc(st.notify_user_id)}" placeholder="ID пользователя в Битриксе">`}
+      </div>
+    </div>
+    <h3 class="blk">Колонки табло</h3>
+    <p class="hint">Не отмечено ничего — показываются все рабочие стадии воронки.</p>
+    <div class="stage-list" id="cfgBoard">
+      ${stages.length ? stages.map((s) => `<label class="checkline"><input type="checkbox" value="${esc(s.id)}" ${boardSel.includes(s.id) ? "checked" : ""}> ${esc(s.name)}</label>`).join("")
+        : `<span class="hint">Стадии появятся после подключения.</span>`}
+    </div>
+    <div class="actions"><button class="primary" onclick="saveDeals()">Сохранить</button></div>
+  </div>`;
+}
+
+async function connect(btn) {
+  const url = $("webhook").value.trim();
+  if (!url) { toast("Вставьте адрес вебхука", "err"); return; }
+  btn.disabled = true;
+  try {
+    await api("/api/admin/webhook", { webhook: url });
+    toast("Битрикс подключён");
+    pickedCategory = null;
+    await load();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function syncNow(btn) {
+  btn.disabled = true;
+  try {
+    const r = await api("/api/admin/sync", {});
+    toast(r.ok ? `Готово: сделок ${r.deals ?? "—"}, отправлено ${r.sent ?? 0}` : (r.error || "Не удалось"), r.ok ? "" : "err");
+    await load();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function saveDeals() {
+  const body = {
+    number_tpl: $("cfgTpl").value.trim() || "DG-{ID}",
+    final_stage_id: $("cfgFinal").value,
+    notify_user_id: $("cfgNotify").value.trim(),
+    board_stages: [...$("cfgBoard").querySelectorAll("input:checked")].map((x) => x.value),
+  };
+  if (!$("cfgCat").disabled) {
+    body.category_id = $("cfgCat").value;
+    body.ship_field = $("cfgShip").value;
+  }
+  pickedCategory = null;
+  save("/api/admin/settings", body, "Сохранено. Сделки перечитаются за минуту.");
+}
+
+function outbox(id, action) { save("/api/admin/outbox", { id, action }, action === "retry" ? "Отправим ещё раз" : "Убрано"); }
+
+/* ================= ЛЮДИ ================= */
+function personRow(w) {
+  const id = w ? w.id : "new";
+  return `<tr class="${w && !w.active ? "inactive" : ""}" data-id="${id}">
+    <td><input data-f="name" value="${esc(w ? w.name : "")}" placeholder="Имя"></td>
+    <td class="w-badge"><input data-f="badge" class="mono" value="${esc(w ? w.badge : "")}" placeholder="${esc(S.next_badge)}"></td>
+    <td class="w-num"><input data-f="salary" inputmode="decimal" value="${w ? esc(w.salary) : ""}" placeholder="0"></td>
+    <td><input type="checkbox" data-f="active" ${!w || w.active ? "checked" : ""} aria-label="Работает"></td>
+    <td><button class="small ${w ? "" : "primary"}" onclick="savePerson(this)">${w ? "Сохранить" : "Добавить"}</button>
+        ${w ? `<a class="btn small" target="_blank" href="/print?badges=${w.id}">Бейдж</a>` : ""}</td>
+  </tr>`;
+}
+function viewPeople() {
+  return `<div class="card">
+    <p class="hint">Код бейджа печатается штрихкодом и QR на карточке, её ламинируют. Уволенного не удаляйте —
+      снимите галочку «работает»: его строки в отчётах сохранятся. Оклад нужен для схемы «оклад + сделка».</p>
+    <div class="table-wrap"><table>
+      <tr><th>Имя</th><th>Бейдж</th><th>Оклад, ₽</th><th>Работает</th><th></th></tr>
+      ${S.workers.map(personRow).join("")}
+      ${personRow(null)}
+    </table></div>
+    <div class="actions"><a class="btn" target="_blank" href="/print?badges=all">Печать бейджей всех работающих</a></div>
+  </div>`;
+}
+function rowData(tr) {
+  const out = {};
+  for (const el of tr.querySelectorAll("[data-f]")) out[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value;
+  return out;
+}
+function savePerson(btn) {
+  const tr = btn.closest("tr");
+  const d = rowData(tr);
+  if (tr.dataset.id !== "new") d.id = Number(tr.dataset.id);
+  save("/api/admin/worker", d);
+}
+
+/* ================= УЧАСТКИ И СТАВКИ ================= */
+function opRow(sec, op) {
+  const id = op ? op.id : "new";
+  return `<tr class="${op && !op.active ? "inactive" : ""}" data-id="${id}" data-section="${sec.id}">
+    <td><input data-f="name" value="${esc(op ? op.name : "")}" placeholder="Новая операция"></td>
+    <td><input data-f="unit" value="${esc(op ? op.unit : "")}" placeholder="м, шт, лист"></td>
+    <td><input data-f="rate" inputmode="decimal" value="${op ? esc(op.rate) : ""}" placeholder="₽ за ед."></td>
+    <td><label class="checkline"><input type="checkbox" data-f="per_deal" ${op && op.per_deal ? "checked" : ""}> за заказ</label></td>
+    <td><input type="checkbox" data-f="active" ${!op || op.active ? "checked" : ""} aria-label="Действует"></td>
+    <td><button class="small ${op ? "" : "primary"}" onclick="saveOp(this)">${op ? "Сохранить" : "Добавить"}</button></td>
+  </tr>`;
+}
+function sectionCard(sec) {
+  const id = sec ? sec.id : "new";
+  const ops = sec ? S.operations.filter((o) => o.section_id === sec.id) : [];
+  return `<div class="section-card" data-id="${id}">
+    <div class="head">
+      <div class="field"><label>${sec ? "Участок" : "Новый участок"}</label><input data-f="name" value="${esc(sec ? sec.name : "")}" placeholder="Например, Распил"></div>
+      <div class="field"><label>Порядок</label><input data-f="sort" inputmode="numeric" value="${esc(sec ? sec.sort : (S.sections.length + 1) * 10)}"></div>
+      <div class="field"><label>Стадия очереди в Битриксе</label><select data-f="stage_id">${stageOptions(S.stages, sec ? sec.stage_id : "")}</select></div>
+      <div class="field"><label>Тип</label><select data-f="kind">
+        <option value="regular">Обычный</option><option value="otk" ${sec && sec.kind === "otk" ? "selected" : ""}>ОТК (принимает и ставит брак)</option></select></div>
+      <div><button class="small ${sec ? "" : "primary"}" onclick="saveSection(this)">${sec ? "Сохранить" : "Добавить"}</button></div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <label class="checkline"><input type="checkbox" data-f="skip_if_empty" ${sec && sec.skip_if_empty ? "checked" : ""}>
+        пропускать, если в заказе нет объёмов этого участка (например, без присадки)</label>
+      <label class="checkline"><input type="checkbox" data-f="active" ${!sec || sec.active ? "checked" : ""}> работает</label>
+    </div>
+    ${sec ? `<div class="table-wrap ops"><table>
+      <tr><th>Операция</th><th>Ед.</th><th>Ставка, ₽</th><th>Объём</th><th>Действует</th><th></th></tr>
+      ${ops.map((o) => opRow(sec, o)).join("")}${opRow(sec, null)}
+    </table></div>` : ""}
+  </div>`;
+}
+function viewSections() {
+  return `<div class="card">
+    <p class="hint">Участки — в порядке, в котором по ним идёт заказ. Когда рабочий жмёт «Готово», сделка переходит на
+      стадию следующего участка. Ставка — сколько рабочий получает за единицу: объём берётся из товаров сделки
+      (вкладка «Товары сделки»), а для операций «за заказ» объём всегда 1. Новые ставки действуют только на работу,
+      закрытую после изменения.</p>
+    ${S.stages.length ? "" : `<p class="note">Стадии подтянутся после подключения Битрикса и первой синхронизации.</p>`}
+    ${S.sections.map(sectionCard).join("")}
+    ${sectionCard(null)}
+  </div>`;
+}
+function saveSection(btn) {
+  const card = btn.closest(".section-card");
+  const d = {};
+  for (const el of card.querySelectorAll(":scope > .head [data-f], :scope > .row [data-f]")) d[el.dataset.f] = el.type === "checkbox" ? el.checked : el.value;
+  if (card.dataset.id !== "new") d.id = Number(card.dataset.id);
+  save("/api/admin/section", d);
+}
+function saveOp(btn) {
+  const tr = btn.closest("tr");
+  const d = rowData(tr);
+  d.section_id = Number(tr.dataset.section);
+  if (tr.dataset.id !== "new") d.id = Number(tr.dataset.id);
+  save("/api/admin/operation", d);
+}
+
+/* ================= ТОВАРЫ ================= */
+function opOptions(selected) {
+  return S.sections.map((sec) => {
+    const ops = S.operations.filter((o) => o.section_id === sec.id && o.active && !o.per_deal);
+    if (!ops.length) return "";
+    return `<optgroup label="${esc(sec.name)}">${ops.map((o) =>
+      `<option value="${o.id}" ${String(o.id) === String(selected) ? "selected" : ""}>${esc(o.name)}, ${esc(o.unit)}</option>`).join("")}</optgroup>`;
+  }).join("");
+}
+function viewProducts() {
+  const rows = S.products;
+  const unmapped = rows.filter((p) => !p.mapped).length;
+  return `<div class="card">
+    <p class="hint">Здесь видно все товары из открытых сделок. Сопоставьте каждый объём с операцией: «Распил ЛДСП, п.м.» →
+      «Распил». Материалы и услуги отметьте «не учитывать». Коэффициент — если единицы разные (например, товар в мм,
+      а ставка за метр — 0,001).</p>
+    ${unmapped ? `<div class="note" style="margin-bottom:12px">Не сопоставлено: ${unmapped}. Пока товар не сопоставлен, объём по нему не оплачивается.</div>` : ""}
+    ${rows.length ? `<div class="table-wrap"><table>
+      <tr><th>Товар</th><th>Ед.</th><th class="num">Сделок</th><th class="num">Всего</th><th>Операция</th><th>Коэф.</th><th></th></tr>
+      ${rows.map((p) => {
+        const val = !p.mapped ? "" : p.operation_id == null ? "ignore" : String(p.operation_id);
+        return `<tr class="${p.mapped ? "" : "attn"}" data-key="${esc(p.product_key)}" data-name="${esc(p.name)}">
+          <td>${esc(p.name)}<div class="key">${esc(p.product_key)}</div></td>
+          <td>${esc(p.measure)}</td>
+          <td class="num">${fmt(p.deals)}</td>
+          <td class="num">${fmt2(p.qty)}</td>
+          <td><select data-f="op">
+            <option value="" ${val === "" ? "selected" : ""}>— не сопоставлен —</option>
+            <option value="ignore" ${val === "ignore" ? "selected" : ""}>Не учитывать</option>
+            ${opOptions(val)}</select></td>
+          <td style="width:90px"><input data-f="factor" inputmode="decimal" value="${esc(p.factor == null ? 1 : p.factor)}"></td>
+          <td><button class="small" onclick="saveProduct(this)">Сохранить</button></td>
+        </tr>`;
+      }).join("")}
+    </table></div>` : `<p class="note">Товаров пока нет — они появятся после синхронизации сделок.</p>`}
+  </div>`;
+}
+function saveProduct(btn) {
+  const tr = btn.closest("tr");
+  const op = tr.querySelector("[data-f=op]").value;
+  const body = { product_key: tr.dataset.key, product_name: tr.dataset.name, factor: tr.querySelector("[data-f=factor]").value };
+  if (op === "") body.delete = true;
+  else body.operation_id = op === "ignore" ? null : Number(op);
+  save("/api/admin/product", body);
+}
+
+/* ================= РЕЖИМЫ ================= */
+function viewModes() {
+  const st = S.settings;
+  const lines = (a) => esc((a || []).join("\n"));
+  return `<div class="card">
+    <h3 class="blk">Брак по вине рабочего</h3>
+    <p class="hint">ОТК при приёмке жмёт «Брак», выбирает участок и чья вина. Если вина не рабочего (брак плиты,
+      ошибка в УП) — переделка оплачивается как обычная работа и в статистику человека не идёт.</p>
+    <label class="policy"><input type="radio" name="policy" value="unpaid" ${st.defect_policy !== "deduct" ? "checked" : ""}>
+      <span><b>Переделка не оплачивается</b><span class="hint">Первый раз заплачено, за повторную работу — 0 ₽.</span></span></label>
+    <label class="policy"><input type="radio" name="policy" value="deduct" ${st.defect_policy === "deduct" ? "checked" : ""}>
+      <span><b>Вычитать</b><span class="hint">Начисление за этот участок по заказу снимается, переделка тоже не оплачивается.</span></span></label>
+
+    <h3 class="blk">Теневой режим</h3>
+    <label class="checkline"><input type="checkbox" id="shadow" ${st.shadow_mode === "1" ? "checked" : ""}>
+      Сделка считается, но не к выплате — в отчёте и Excel пометка. Первый месяц платите как раньше и сравнивайте.</label>
+    <p class="hint">Выключайте после того, как закроете теневой месяц в «Отчёте»: закрытый месяц запоминает режим,
+      а открытый показывается по текущей настройке.</p>
+
+    <h3 class="blk">Причины</h3>
+    <div class="grid">
+      <div class="field"><label for="rRemark">«Готово с замечанием»</label><textarea id="rRemark">${lines(st.remark_reasons)}</textarea></div>
+      <div class="field"><label for="rProblem">«Проблема»</label><textarea id="rProblem">${lines(st.problem_reasons)}</textarea></div>
+      <div class="field"><label for="rDefect">Брак на ОТК</label><textarea id="rDefect">${lines(st.defect_reasons)}</textarea></div>
+    </div>
+    <span class="hint">По одной причине в строке.</span>
+    <div class="actions"><button class="primary" onclick="saveModes()">Сохранить</button></div>
+  </div>
+  <div class="card">
+    <h3 class="blk">PIN справочников и отчёта</h3>
+    <p class="hint">${st.has_pin ? "PIN задан." : "PIN не задан — справочники и отчёт открыты всем в сети цеха. Задайте PIN."}
+      Терминалам и табло PIN не нужен.</p>
+    <div class="row"><input id="pin" class="grow" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Новый PIN">
+      <button onclick="savePin(false)">Задать PIN</button>
+      ${st.has_pin ? `<button class="danger" onclick="savePin(true)">Снять PIN</button>` : ""}</div>
+  </div>`;
+}
+function splitLines(id) { return $(id).value.split("\n").map((s) => s.trim()).filter(Boolean); }
+function saveModes() {
+  save("/api/admin/settings", {
+    defect_policy: document.querySelector("input[name=policy]:checked").value,
+    shadow_mode: $("shadow").checked ? "1" : "0",
+    remark_reasons: splitLines("rRemark"),
+    problem_reasons: splitLines("rProblem"),
+    defect_reasons: splitLines("rDefect"),
+  });
+}
+async function savePin(clear) {
+  const pin = clear ? "" : $("pin").value.trim();
+  if (!clear && pin.length < 4) { toast("PIN — не меньше 4 цифр", "err"); return; }
+  try {
+    // Запрос идёт ещё со старым PIN; новый запоминаем до перечитывания, иначе страница сразу его спросит.
+    await api("/api/admin/settings", { admin_pin: pin });
+    ssSet(PIN_KEY, pin);
+    toast(clear ? "PIN снят" : "PIN задан");
+    await load();
+  } catch (e) {
+    toast(e.message, "err");
+  }
+}
+
+/* ================= ПЕЧАТЬ ================= */
+function viewPrint() {
+  return `<div class="card">
+    <h3 class="blk">Бейджи</h3>
+    <p class="hint">Карточки 85×55 мм со штрихкодом и QR. Распечатайте, вырежьте, заламинируйте.</p>
+    <div class="actions" style="margin-top:0"><a class="btn" target="_blank" href="/print?badges=all">Бейджи всех работающих</a></div>
+  </div>
+  <div class="card">
+    <h3 class="blk">Титульники и наклейки на заказ</h3>
+    <p class="hint">QR и штрихкод с номером заказа — их пикают на участке. Титульник — лист А4; наклейка 58×40 мм —
+      если титульник уже печатается из Битрикса и нужно только добавить код.</p>
+    <div class="row" style="margin-bottom:10px">
+      <input id="dealFilter" class="grow" placeholder="Поиск по номеру или клиенту" oninput="renderDeals()">
+      <button onclick="printDeals('a4')">Титульники А4</button>
+      <button onclick="printDeals('label')">Наклейки</button>
+    </div>
+    <div id="dealList" class="table-wrap">Загрузка…</div>
+  </div>`;
+}
+async function loadDeals() {
+  try {
+    dealsCache = (await api("/api/admin/deals")).deals;
+    renderDeals();
+  } catch (e) {
+    $("dealList").innerHTML = `<div class="note err">${esc(e.message)}</div>`;
+  }
+}
+function renderDeals() {
+  if (!dealsCache || !$("dealList")) return;
+  const f = ($("dealFilter").value || "").toLowerCase();
+  const rows = dealsCache.filter((d) => !f || `${d.number} ${d.client} ${d.title}`.toLowerCase().includes(f));
+  $("dealList").innerHTML = rows.length ? `<table>
+    <tr><th><input type="checkbox" aria-label="Выбрать все" onchange="document.querySelectorAll('#dealList .pick').forEach((x) => x.checked = this.checked)"></th>
+      <th>Заказ</th><th>Клиент</th><th>Изделие</th><th>Отгрузка</th><th>Стадия</th></tr>
+    ${rows.map((d) => `<tr><td><input type="checkbox" class="pick" value="${d.id}"></td><td><b>${esc(d.number)}</b></td>
+      <td>${esc(d.client)}</td><td>${esc(d.title)}</td><td>${esc(shortDate(d.ship_date))}</td><td>${esc(d.stage)}</td></tr>`).join("")}
+  </table>` : `<p class="hint">Нет сделок.</p>`;
+}
+function printDeals(format) {
+  const ids = [...document.querySelectorAll("#dealList .pick:checked")].map((x) => x.value);
+  if (!ids.length) { toast("Отметьте заказы", "err"); return; }
+  window.open(`/print?deals=${ids.join(",")}&format=${format}`, "_blank");
+}
+
+load();
+</script>
+</body>
+</html>

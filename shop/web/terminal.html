@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Терминал участка — DANIEL GROUP</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  /* Терминал смотрят с вытянутой руки и жмут пальцем в перчатке: всё крупно. */
+  body { font-size: 18px; }
+  .term { max-width: 1440px; margin: 0 auto; padding: 14px 16px 10px; min-height: 100vh; display: flex; flex-direction: column; }
+
+  .offline { position: sticky; top: 0; z-index: 40; background: var(--err); color: #fff; font-weight: 700;
+    text-align: center; padding: 10px 16px; font-size: 18px; }
+
+  header.top { display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; }
+  .kicker { font-size: 13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .sec-name { font-size: clamp(30px, 5vw, 46px); font-weight: 800; line-height: 1.05; overflow-wrap: anywhere; }
+  header.top .spacer { flex: 1 1 auto; }
+  .clock { font-size: clamp(24px, 3.4vw, 34px); font-weight: 700; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; flex: 1 1 auto; margin-top: 14px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+  /* Поле кода: сюда «печатает» сканер. */
+  .scanline { display: flex; gap: 8px; align-items: center; }
+  .scanline input { flex: 1 1 auto; font: 600 22px var(--mono); padding: 12px 14px; min-height: 64px; border-width: 2px; }
+  .scanline input:focus { outline: none; border-color: var(--ok); }
+  .ghost-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); font-size: 15px;
+    min-height: 64px; padding: 8px 16px; border-radius: 10px; white-space: nowrap; }
+  .ghost-btn.on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  @media (max-width: 480px) { .ghost-btn.kbd span { display: none; } }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 16px; border-radius: 100px;
+    background: var(--accent-soft); border: 2px solid var(--accent); font-size: 20px; font-weight: 700; max-width: 100%; }
+  .chip small { font-size: 14px; font-weight: 600; color: var(--text-dim); }
+  .chip button { width: 56px; height: 56px; padding: 0; justify-content: center; border-radius: 50%; font-size: 26px; line-height: 1; }
+  .chips .hint { font-size: 15px; }
+
+  .panel { margin-top: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+
+  /* Ожидание */
+  .prompt { text-align: center; padding: 26px 8px 22px; }
+  .prompt svg { width: 120px; height: 64px; color: var(--accent); }
+  .prompt-big { font-size: clamp(32px, 5.4vw, 52px); font-weight: 800; line-height: 1.1; margin-top: 10px; }
+  .prompt-sub { font-size: 19px; color: var(--text-dim); margin-top: 10px; }
+
+  /* Карточка заказа */
+  .deal { border-left: 8px solid var(--border); padding: 4px 0 4px 16px; margin-bottom: 14px; }
+  .deal.late { border-left-color: var(--late-border); }
+  .deal.soon { border-left-color: var(--soon-border); }
+  .deal-top { display: flex; align-items: baseline; gap: 6px 16px; flex-wrap: wrap; }
+  .deal-num { font-size: clamp(34px, 5.5vw, 50px); font-weight: 800; line-height: 1.05; letter-spacing: .01em; }
+  .deal-date { font-size: 22px; font-weight: 700; color: var(--text-dim); }
+  .deal.late .deal-date { color: var(--late-text); }
+  .deal.soon .deal-date { color: var(--soon-text); }
+  .deal-client { font-size: 24px; font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
+  .deal-title { font-size: 18px; color: var(--text-dim); overflow-wrap: anywhere; }
+  .mini { font-size: 18px; color: var(--text-dim); margin-bottom: 12px; overflow-wrap: anywhere; }
+  .mini b { color: var(--text); font-size: 22px; }
+
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .tag { font-size: 15px; font-weight: 700; padding: 2px 10px; border-radius: 100px; border: 1px solid var(--border);
+    background: var(--surface-2); overflow-wrap: anywhere; }
+  .tag.problem { border-color: var(--late-border); color: var(--late-text); background: var(--late-bg); }
+  .tag.rework { border-color: var(--soon-border); color: var(--soon-text); background: var(--soon-bg); }
+  .tag.work { border-color: var(--ok); color: var(--ok); }
+  .tag.vol { font-weight: 600; }
+  .tag.next { border-color: var(--accent); color: var(--accent); }
+
+  .warns { display: grid; gap: 8px; margin-bottom: 14px; }
+  .warn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--soon-border); background: var(--soon-bg);
+    color: var(--text); font-size: 18px; font-weight: 600; }
+  .session-line { font-size: 20px; margin-bottom: 14px; }
+  .ask { font-size: clamp(26px, 4vw, 36px); font-weight: 800; text-align: center; padding: 18px 0; }
+
+  /* Кнопки */
+  .big-btn { width: 100%; min-height: 72px; justify-content: center; flex-direction: column; gap: 2px; text-align: center;
+    font-size: 24px; font-weight: 800; border-radius: 14px; padding: 12px 18px; border-width: 2px; line-height: 1.15; }
+  .big-btn small { display: block; font-size: 17px; font-weight: 600; opacity: .9; }
+  .big-btn.huge { min-height: 120px; font-size: clamp(34px, 5vw, 46px); }
+  .btn-start { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn-done { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+  .btn-remark { background: var(--soon-bg); border-color: var(--soon-border); color: var(--text); }
+  .btn-problem { background: var(--late-bg); border-color: var(--late-border); color: var(--late-text); }
+  .btn-defect { background: var(--surface-2); border-color: var(--late-border); color: var(--late-text); }
+  .btn-pick { background: var(--surface-2); font-weight: 700; }
+  .btn-pick.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+  .stack { display: grid; gap: 12px; margin-top: 12px; }
+  .finish { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  .finish .btn-done, .finish .btn-defect { grid-column: 1 / -1; }
+  .reasons { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+  @media (max-width: 480px) { .finish { grid-template-columns: 1fr; } }
+  .row-end { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  .row-end .ghost-btn { min-height: 64px; font-size: 18px; padding: 8px 22px; }
+
+  .step-title { font-size: 26px; margin: 0 0 12px; line-height: 1.2; }
+  .crumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .field-big { margin-top: 14px; }
+  .field-big label { font-size: 16px; color: var(--text-dim); font-weight: 600; display: block; margin-bottom: 6px; }
+  .field-big input { font-size: 20px; padding: 12px 14px; min-height: 56px; }
+  .summary { font-size: 22px; line-height: 1.45; margin-bottom: 14px; }
+
+  /* Результат */
+  .result { cursor: pointer; }
+  .res-head { font-size: clamp(30px, 5vw, 44px); font-weight: 800; line-height: 1.1; }
+  .res-head.ok { color: var(--ok); }
+  .res-head.bad { color: var(--late-text); }
+  .res-sub { font-size: 20px; color: var(--text-dim); margin-top: 6px; overflow-wrap: anywhere; }
+  .earn { margin-top: 16px; display: grid; gap: 10px; }
+  .earn-row { font-size: 22px; line-height: 1.35; padding: 12px 16px; border-radius: 12px; background: var(--ok-soft);
+    border: 1px solid var(--ok); overflow-wrap: anywhere; }
+  .earn-row .plus { font-size: 30px; font-weight: 800; color: var(--ok); white-space: nowrap; }
+  .earn-row .tot { white-space: nowrap; }
+  .res-line { font-size: 20px; margin-top: 12px; }
+  .res-note { font-size: 18px; color: var(--text-dim); margin-top: 10px; }
+  .countdown { height: 6px; border-radius: 3px; background: var(--accent); margin-top: 18px; transform-origin: left;
+    animation: shrink linear forwards; }
+  @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) { .countdown { animation: none; opacity: .4; } }
+
+  /* Правая колонка: в работе и очередь */
+  .side-h { font-size: 15px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); margin: 18px 0 8px;
+    display: flex; align-items: center; gap: 8px; }
+  .side-h:first-child { margin-top: 0; }
+  .side-h .count { background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 0 9px;
+    font-size: 14px; color: var(--text); letter-spacing: 0; }
+  .side-list { display: grid; gap: 8px; }
+  .q-item { display: block; width: 100%; text-align: left; font-weight: 400; padding: 10px 12px 10px 14px; border-radius: 10px;
+    border: 1px solid var(--border); border-left: 6px solid var(--border); background: var(--surface); min-height: 64px; }
+  .q-item.late { border-left-color: var(--late-border); background: var(--late-bg); }
+  .q-item.soon { border-left-color: var(--soon-border); background: var(--soon-bg); }
+  .q-item.open { border-left-color: var(--ok); }
+  .q-item > span { display: block; }
+  .q-item > .q-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .q-item > .tags { display: flex; margin-top: 6px; }
+  .q-num { font-size: 22px; font-weight: 800; }
+  .q-date { font-size: 16px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+  .q-item.late .q-date { color: var(--late-text); }
+  .q-item.soon .q-date { color: var(--soon-text); }
+  .q-client { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+  .q-title { font-size: 15px; color: var(--text-dim); overflow-wrap: anywhere; }
+  .q-item .tag { font-size: 13px; }
+  .empty { color: var(--text-dim); font-size: 17px; padding: 10px 2px; margin: 0; }
+
+  footer.foot { display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; margin-top: 18px; padding-top: 10px;
+    border-top: 1px solid var(--border); font-size: 14px; color: var(--text-dim); }
+  footer.foot .spacer { flex: 1 1 auto; }
+  footer.foot a { color: var(--text-dim); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
+  .dot.warn { background: var(--soon-border); }
+
+  /* Выбор участка */
+  .pick-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .pick-head img { height: 40px; width: auto; background: #fff; border-radius: 6px; padding: 3px 7px; }
+  .pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+  .pick-grid .big-btn { min-height: 96px; font-size: 28px; }
+
+  .toast { font-size: 21px; padding: 14px 22px; bottom: 28px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="offline" id="offline" role="alert" hidden>Нет связи с сервером цеха — отметки не проходят. Проверьте Wi-Fi.</div>
+
+<div class="term" id="picker" hidden>
+  <div class="pick-head">
+    <img src="/static/logo.png" alt="DANIEL GROUP">
+    <div><div class="kicker">DANIEL GROUP</div><div style="font-size:20px;font-weight:700">Терминал участка</div></div>
+  </div>
+  <h1 style="font-size:32px;margin:6px 0 4px">Какой это участок?</h1>
+  <p class="hint" style="font-size:16px;margin:0 0 16px">Планшет запомнит выбор. Сменить — ссылка внизу экрана терминала.</p>
+  <div class="note err" id="pickErr" hidden style="margin-bottom:14px"></div>
+  <div class="pick-grid" id="pickList">Загрузка…</div>
+</div>
+
+<div class="term" id="app" hidden>
+  <header class="top">
+    <div>
+      <div class="kicker" id="secKind">Участок</div>
+      <div class="sec-name" id="secName">…</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <div class="layout">
+    <main>
+      <div class="scanline">
+        <input id="scan" inputmode="none" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               enterkeyhint="go" placeholder="пикните сканером…" aria-label="Код со сканера">
+        <button class="ghost-btn kbd" id="kbd" type="button" aria-pressed="false">⌨<span> ввести вручную</span></button>
+      </div>
+      <div class="chips" id="chips" hidden></div>
+      <div class="panel" id="panel" aria-live="polite"></div>
+    </main>
+    <aside id="side"></aside>
+  </div>
+
+  <footer class="foot">
+    <span id="syncLine"></span>
+    <span class="spacer"></span>
+    <a href="/terminal" id="changeSection">сменить участок</a>
+  </footer>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+/* Терминал участка. Сканер работает как клавиатура: «печатает» код в поле и жмёт Enter.
+   Бейдж → титульник → «Начал»; титульник → «Готово» / «С замечанием» / «Проблема» (на ОТК ещё «Брак»).
+   Вся логика оплаты и маршрута — на сервере (logic.py), здесь только экраны. */
+const SEC_KEY = "dg_terminal_section";
+const NO_SERVER = "Нет связи с сервером цеха";  // текст ошибки из api() в common.js
+const IDLE_MS = 60000;       // без действий — сброс бейджей и заказа
+const REFRESH_MS = 15000;
+
+const st = {
+  sectionId: null,
+  T: null,          // /api/terminal/<id>
+  badges: [],       // пикнутые бейджи: {id, name, today, month}
+  scan: null,       // ответ /api/scan с type: "deal"
+  view: "idle",     // idle | deal | remark | problem | defect | result
+  pick: {},         // выбор на шагах причины и брака
+  result: null,
+  busy: false,
+  lastAction: Date.now(),
+  manual: false,
+};
+let pollTimer = null, resultTimer = null, chain = Promise.resolve();
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* без памяти — участок берём из адреса */ } }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* без памяти */ } }
+function pad(n) { return String(n).padStart(2, "0"); }
+function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function names(list) { return list.map((b) => b.name).join(", "); }
+function touch() { st.lastAction = Date.now(); }
+
+/* ================= ЗВУК ================= */
+// Сканеру нужен отклик: короткий высокий — принято, два низких — ошибка.
+let audio = null;
+function beep(ok) {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "suspended") audio.resume();
+    const tones = ok ? [[1320, 0, 0.09]] : [[330, 0, 0.15], [220, 0.2, 0.25]];
+    for (const [freq, at, dur] of tones) {
+      const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime + at;
+      o.type = ok ? "sine" : "square";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(ok ? 0.3 : 0.15, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(audio.destination);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }
+  } catch (e) { /* без звука */ }
+}
+function fail(msg) { beep(false); toast(msg, "err"); }
+
+/* ================= СРОЧНОСТЬ (как на табло) ================= */
+// Дата сервера: часы планшета могут врать.
+function today() { return (st.T && st.T.today) || ymd(new Date()); }
+function tomorrow() { const d = new Date(today() + "T12:00:00"); d.setDate(d.getDate() + 1); return ymd(d); }
+function urgency(ship) {
+  if (!ship) return "";
+  if (ship <= today()) return "late";
+  return ship === tomorrow() ? "soon" : "";
+}
+const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+function dateLabel(ship) {
+  if (!ship) return "без даты";
+  if (ship === today()) return "отгрузка сегодня";
+  if (ship === tomorrow()) return "завтра";
+  const d = new Date(ship + "T12:00:00");
+  if (ship < today()) return "просрочено " + Math.round((new Date(today() + "T12:00:00") - d) / 86400000) + " дн.";
+  return WD[d.getDay()] + " " + pad(d.getDate()) + "." + pad(d.getMonth() + 1);
+}
+/* «2026-10-02 09:12:00» → «09:12», вчерашнее — с датой. */
+function hhmm(ts) {
+  if (!ts) return "—";
+  return String(ts).slice(0, 10) === today() ? String(ts).slice(11, 16) : shortTs(ts);
+}
+
+/* ================= ФОКУС И СКАНЕР ================= */
+const scanEl = $("scan");
+// Комментарий к проблеме печатают руками — фокус оттуда не забираем.
+function typingElsewhere() {
+  const a = document.activeElement;
+  return a && a !== scanEl && a.matches("input, textarea, select");
+}
+function keepFocus() {
+  if ($("app").hidden || typingElsewhere()) return;
+  scanEl.focus({ preventScroll: true });
+}
+// Тап по кнопке не забирает фокус у поля кода: скан сразу после тапа не теряет первые символы.
+document.addEventListener("mousedown", (e) => {
+  if (!$("app").hidden && !e.target.closest("input, textarea, select")) e.preventDefault();
+});
+document.addEventListener("click", () => { touch(); setTimeout(keepFocus, 0); });
+scanEl.addEventListener("blur", () => setTimeout(() => {
+  const a = document.activeElement;
+  if (!a || a === document.body) keepFocus();
+}, 0));
+window.addEventListener("focus", keepFocus);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { keepFocus(); refresh(); } });
+
+// Если фокус всё-таки ушёл на кнопку, символы сканера всё равно попадают в поле кода.
+document.addEventListener("keydown", (e) => {
+  touch();
+  if ($("app").hidden || e.target === scanEl || typingElsewhere()) return;
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    scanEl.value += e.key;
+    scanEl.focus({ preventScroll: true });
+  }
+}, true);
+
+scanEl.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== "Tab") return;
+  const code = scanEl.value.trim();
+  if (e.key === "Tab" && !code) return;
+  e.preventDefault();
+  scanEl.value = "";
+  if (st.manual) setManual(false);
+  if (code) submitScan(code);
+});
+
+function setManual(on) {
+  st.manual = on;
+  scanEl.setAttribute("inputmode", on ? "text" : "none");
+  scanEl.placeholder = on ? "наберите код и нажмите Enter" : "пикните сканером…";
+  $("kbd").classList.toggle("on", on);
+  $("kbd").setAttribute("aria-pressed", String(on));
+  scanEl.blur();  // экранная клавиатура появляется/прячется только при новом фокусе
+  setTimeout(() => scanEl.focus({ preventScroll: true }), 30);
+}
+$("kbd").addEventListener("click", (e) => { e.stopPropagation(); setManual(!st.manual); });
+
+/* Сканы и запросы идут строго по очереди: двойной пик или двойной тап не закроют работу дважды. */
+function submitScan(code) { chain = chain.then(() => handleScan(code)); }
+
+function act(fn, onErr) {
+  if (st.busy) return;
+  st.busy = true;
+  renderPanel();
+  chain = chain.then(async () => {
+    try {
+      await fn();
+    } catch (e) {
+      fail(e.message);
+      if (onErr) onErr(e);
+    } finally {
+      st.busy = false;
+      renderPanel();
+    }
+  });
+}
+
+async function handleScan(code) {
+  touch();
+  let r;
+  try {
+    r = await api("/api/scan", { section_id: st.sectionId, code });
+    setOffline(false);
+  } catch (e) {
+    if (e.message === NO_SERVER) setOffline(true);
+    fail(e.message);
+    return;
+  }
+  if (r.type === "worker") {
+    beep(true);
+    if (!st.badges.some((b) => b.id === r.worker.id)) st.badges.push({ ...r.worker, today: r.today, month: r.month });
+    if (st.view === "result") goIdle(true);
+    renderChips();
+    renderPanel();
+  } else if (r.type === "deal") {
+    beep(true);
+    clearTimeout(resultTimer);
+    st.scan = r;
+    st.view = "deal";
+    st.pick = {};
+    renderPanel();
+  } else {
+    fail(`Код «${code}» не найден. Новый заказ появится здесь через минуту после создания в Битриксе.`);
+  }
+}
+
+/* ================= ДЕЙСТВИЯ ================= */
+function goIdle(keepBadges) {
+  clearTimeout(resultTimer);
+  st.view = "idle";
+  st.scan = null;
+  st.pick = {};
+  st.result = null;
+  if (!keepBadges) st.badges = [];
+  renderChips();
+  renderPanel();
+}
+
+function showResult(result, ms) {
+  st.result = result;
+  st.result.ms = ms;
+  st.view = "result";
+  st.scan = null;
+  st.pick = {};
+  st.badges = [];
+  renderChips();
+  clearTimeout(resultTimer);
+  resultTimer = setTimeout(() => goIdle(), ms);
+}
+
+function doStart(ids) {
+  const deal = st.scan.deal;
+  act(async () => {
+    const r = await api("/api/start", { section_id: st.sectionId, deal_id: deal.id, worker_ids: ids });
+    beep(true);
+    showResult({ kind: "start", r, deal }, 6000);
+    refresh();
+  });
+}
+
+function doFinish(result, reason, comment) {
+  const deal = st.scan.deal, sid = st.scan.open_session.session_id;
+  act(async () => {
+    const r = await api("/api/finish", { session_id: sid, result, reason: reason || "", comment: comment || "" });
+    beep(true);
+    showResult({ kind: "finish", r, deal, reason }, r.warnings && r.warnings.length ? 20000 : 10000);
+    refresh();
+  }, () => { goIdle(true); refresh(); });  // работу закрыли с другого планшета или отменили в справочниках
+}
+
+function doDefect() {
+  const p = st.pick, deal = st.scan.deal;
+  act(async () => {
+    const r = await api("/api/defect", { deal_id: deal.id, section_id: p.section.id, reason: p.reason,
+                                         worker_fault: p.fault, reported_by: names(st.badges) || "ОТК" });
+    beep(true);
+    showResult({ kind: "defect", r, deal, section: p.section, reason: p.reason, fault: p.fault }, 12000);
+    refresh();
+  });
+}
+
+function reasonsOf(kind) {
+  const list = (st.T.reasons && st.T.reasons[kind]) || [];
+  return list.length ? list.slice() : ["Другое"];
+}
+
+$("panel").addEventListener("click", (e) => {
+  if (st.view === "result") { goIdle(); return; }
+  const b = e.target.closest("[data-act]");
+  if (!b || b.disabled || st.busy) return;
+  const p = st.pick, i = Number(b.dataset.i);
+  switch (b.dataset.act) {
+    case "start": doStart(st.badges.map((x) => x.id)); return;
+    case "join": doStart(st.badges.filter((x) => !st.scan.open_session.worker_ids.includes(x.id)).map((x) => x.id)); return;
+    case "done": doFinish("done"); return;
+    case "remark": st.view = "remark"; st.pick = { reasons: reasonsOf("remark") }; break;
+    case "remark-reason": doFinish("remark", p.reasons[i]); return;
+    case "problem": st.view = "problem"; st.pick = { reasons: reasonsOf("problem"), comment: "" }; break;
+    case "problem-reason": p.reason = p.reasons[i]; break;
+    case "problem-send": doFinish("problem", p.reason, p.comment); return;
+    case "defect": {
+      const passed = st.scan.passed || [];
+      const all = st.T.sections.filter((s) => s.kind !== "otk");
+      st.view = "defect";
+      st.pick = { step: 1, sections: passed.length ? passed : all, fromPassed: passed.length > 0, reasons: reasonsOf("defect") };
+      break;
+    }
+    case "defect-section": p.section = p.sections[i]; p.step = 2; break;
+    case "defect-reason": p.reason = p.reasons[i]; p.step = 3; break;
+    case "defect-fault": p.fault = b.dataset.v === "1"; p.step = 4; break;
+    case "defect-all": p.sections = st.T.sections.filter((s) => s.kind !== "otk"); p.fromPassed = false; break;
+    case "defect-confirm": doDefect(); return;
+    case "back":
+      if (st.view === "defect" && p.step > 1) p.step -= 1;
+      else { st.view = "deal"; st.pick = {}; }
+      break;
+    case "cancel": goIdle(true); return;
+    default: return;
+  }
+  renderPanel();
+});
+$("panel").addEventListener("input", (e) => { if (e.target.id === "pComment") st.pick.comment = e.target.value; });
+$("panel").addEventListener("keydown", (e) => {
+  if (e.target.id === "pComment" && e.key === "Enter" && st.pick.reason) {
+    e.preventDefault();
+    doFinish("problem", st.pick.reason, st.pick.comment);
+  }
+});
+
+$("chips").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-unbadge]");
+  if (!b) return;
+  st.badges = st.badges.filter((x) => String(x.id) !== b.dataset.unbadge);
+  renderChips();
+  renderPanel();
+});
+
+$("side").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-code]");
+  if (b && !st.busy) submitScan(b.dataset.code);
+});
+
+/* ================= ЭКРАНЫ ================= */
+const BARCODE_SVG = `<svg viewBox="0 0 120 64" aria-hidden="true" fill="currentColor">${
+  [0, 6, 10, 18, 22, 30, 36, 40, 48, 54, 58, 66, 70, 78, 84, 88, 96, 102, 106, 114]
+    .map((x, i) => `<rect x="${x + 2}" y="4" width="${i % 3 === 0 ? 4 : 2}" height="56" rx="1"/>`).join("")}</svg>`;
+
+function dealCard(d, showWorking) {
+  const u = urgency(d.shipDate);
+  const tags = [];
+  if (d.problem) tags.push(`<span class="tag problem">⚠ проблема: ${esc(d.problem)}</span>`);
+  if (d.rework) tags.push(`<span class="tag rework">переделка</span>`);
+  if (showWorking && d.working && d.working.length) tags.push(`<span class="tag work">в работе: ${esc(d.working.join(", "))}</span>`);
+  for (const v of d.volumes || []) tags.push(`<span class="tag vol">${esc(v)}</span>`);
+  const showTitle = d.title && d.title !== d.client && d.title !== d.number;
+  return `<div class="deal ${u}">
+    <div class="deal-top"><span class="deal-num">${esc(d.number)}</span><span class="deal-date">${esc(dateLabel(d.shipDate))}</span></div>
+    ${d.client ? `<div class="deal-client">${esc(d.client)}</div>` : ""}
+    ${showTitle ? `<div class="deal-title">${esc(d.title)}</div>` : ""}
+    ${tags.length ? `<div class="tags">${tags.join("")}</div>` : ""}
+  </div>`;
+}
+
+function miniDeal(d) {
+  return `<div class="mini"><b>${esc(d.number)}</b> · ${esc(d.client || d.title)}</div>`;
+}
+
+function dealWarnings(sc) {
+  const d = sc.deal, sec = st.T.section, out = [];
+  if (d.gone) out.push("Сделка закрыта или ушла из воронки производства — уточните у мастера.");
+  else if (sec.stage_id && d.stageId !== sec.stage_id) {
+    out.push(`Заказ сейчас на стадии «${d.stageName || "без стадии"}», а не в очереди участка «${sec.name}». ` +
+             "Отметить можно — проверьте, тот ли это заказ.");
+  }
+  if (sc.rework_here) out.push("ОТК вернул заказ с браком этого участка — это переделка.");
+  return out.length ? `<div class="warns">${out.map((w) => `<div class="warn">${esc(w)}</div>`).join("")}</div>` : "";
+}
+
+function viewIdle() {
+  const hasBadges = st.badges.length > 0;
+  return `<div class="prompt">
+    ${BARCODE_SVG}
+    <div class="prompt-big">${hasBadges ? "Пикните титульник заказа" : "Пикните бейдж"}</div>
+    <div class="prompt-sub">${hasBadges
+      ? "Работаете вдвоём — сначала пикните второй бейдж."
+      : "Потом титульник заказа и «Начал». Закончили — пикните титульник ещё раз."}</div>
+  </div>`;
+}
+
+function finishButtons(dis, otk) {
+  return `<div class="finish">
+    <button class="big-btn huge btn-done" data-act="done" ${dis}>Готово</button>
+    <button class="big-btn btn-remark" data-act="remark" ${dis}>Готово с замечанием</button>
+    <button class="big-btn btn-problem" data-act="problem" ${dis}>Проблема</button>
+    ${otk ? `<button class="big-btn btn-defect" data-act="defect" ${dis}>Брак<small>вернуть на участок</small></button>` : ""}
+  </div>`;
+}
+
+function viewDeal(dis) {
+  const sc = st.scan, s = sc.open_session, otk = st.T.section.kind === "otk";
+  const defectBtn = otk ? `<button class="big-btn btn-defect" data-act="defect" ${dis}>Брак<small>вернуть на участок</small></button>` : "";
+  let html = dealCard(sc.deal, !s) + dealWarnings(sc);
+  if (s) {
+    const newcomers = st.badges.filter((b) => !s.worker_ids.includes(b.id));
+    html += `<div class="session-line">В работе с ${esc(hhmm(s.started_at))}: <b>${esc(s.workers.join(", "))}</b>
+      ${s.rework ? `<span class="tag rework">переделка</span>` : ""}</div>`;
+    if (newcomers.length) {
+      html += `<div class="stack" style="margin:0 0 12px"><button class="big-btn btn-start" data-act="join" ${dis}>Присоединиться<small>${esc(names(newcomers))} — деньги поровну</small></button></div>`;
+    }
+    html += finishButtons(dis, otk);
+  } else if (st.badges.length) {
+    html += `<div class="stack"><button class="big-btn huge btn-start" data-act="start" ${dis}>Начал<small>${esc(names(st.badges))}</small></button>${defectBtn}</div>`;
+  } else {
+    html += `<div class="ask">Пикните бейдж, чтобы начать</div>${defectBtn ? `<div class="stack">${defectBtn}</div>` : ""}`;
+  }
+  return html + `<div class="row-end"><button class="ghost-btn" data-act="cancel" ${dis}>Отмена</button></div>`;
+}
+
+function backBtn(dis) { return `<div class="row-end"><button class="ghost-btn" data-act="back" ${dis}>← Назад</button></div>`; }
+
+function viewRemark(dis) {
+  return `${miniDeal(st.scan.deal)}<h2 class="step-title">Готово с замечанием — что было?</h2>
+    <div class="reasons">${st.pick.reasons.map((r, i) =>
+      `<button class="big-btn btn-remark" data-act="remark-reason" data-i="${i}" ${dis}>${esc(r)}</button>`).join("")}</div>
+    ${backBtn(dis)}`;
+}
+
+function viewProblem(dis) {
+  const p = st.pick;
+  return `${miniDeal(st.scan.deal)}<h2 class="step-title">Проблема — что случилось?</h2>
+    <div class="reasons">${p.reasons.map((r, i) =>
+      `<button class="big-btn btn-pick ${p.reason === r ? "on" : ""}" data-act="problem-reason" data-i="${i}" aria-pressed="${p.reason === r}" ${dis}>${esc(r)}</button>`).join("")}</div>
+    <div class="field-big"><label for="pComment">Комментарий — если нужно</label>
+      <input id="pComment" maxlength="300" autocomplete="off" value="${esc(p.comment || "")}" placeholder="например, нет кромки 2 мм белой"></div>
+    <div class="stack"><button class="big-btn btn-problem" data-act="problem-send" ${p.reason && !st.busy ? "" : "disabled"}>Сообщить мастеру
+      <small>${p.reason ? "стадия заказа не меняется" : "сначала выберите причину"}</small></button></div>
+    ${backBtn(dis)}`;
+}
+
+function viewDefect(dis) {
+  const p = st.pick;
+  const crumbs = [];
+  if (p.step > 1) crumbs.push(`<span class="tag">участок: ${esc(p.section.name)}</span>`);
+  if (p.step > 2) crumbs.push(`<span class="tag">${esc(p.reason)}</span>`);
+  if (p.step > 3) crumbs.push(`<span class="tag">${p.fault ? "вина рабочего" : "не вина рабочего"}</span>`);
+  let body = "";
+  if (p.step === 1) {
+    body = `<h2 class="step-title">Брак — чей участок?</h2>
+      <div class="reasons">${p.sections.map((s, i) =>
+        `<button class="big-btn btn-pick" data-act="defect-section" data-i="${i}" ${dis}>${esc(s.name)}${s.at ? `<small>делали ${esc(hhmm(s.at))}</small>` : ""}</button>`).join("")}</div>
+      ${p.fromPassed ? `<div class="row-end" style="justify-content:flex-start"><button class="ghost-btn" data-act="defect-all" ${dis}>Другой участок…</button></div>` : ""}`;
+  } else if (p.step === 2) {
+    body = `<h2 class="step-title">Причина брака</h2>
+      <div class="reasons">${p.reasons.map((r, i) =>
+        `<button class="big-btn btn-pick" data-act="defect-reason" data-i="${i}" ${dis}>${esc(r)}</button>`).join("")}</div>`;
+  } else if (p.step === 3) {
+    body = `<h2 class="step-title">Чья вина?</h2>
+      <div class="finish">
+        <button class="big-btn btn-problem" data-act="defect-fault" data-v="1" ${dis}>Вина рабочего<small>переделка не оплачивается</small></button>
+        <button class="big-btn btn-pick" data-act="defect-fault" data-v="0" ${dis}>Не вина рабочего<small>плита, УП — переделку оплатим</small></button>
+      </div>`;
+  } else {
+    body = `<h2 class="step-title">Подтвердите брак</h2>
+      <div class="summary">Заказ <b>${esc(st.scan.deal.number)}</b> вернётся на участок <b>«${esc(p.section.name)}»</b>
+        с пометкой «переделка». После переделки придёт обратно на ОТК.</div>
+      <div class="stack"><button class="big-btn huge btn-problem" data-act="defect-confirm" ${dis}>Подтвердить брак</button></div>`;
+  }
+  return `${miniDeal(st.scan.deal)}${crumbs.length ? `<div class="crumbs">${crumbs.join("")}</div>` : ""}${body}${backBtn(dis)}`;
+}
+
+function viewResult() {
+  const R = st.result, r = R.r;
+  let head, sub = "", body = "";
+  if (R.kind === "start") {
+    head = `<div class="res-head ok">${r.joined ? "Присоединились" : "Начали"}: ${esc(r.deal)}</div>`;
+    sub = `${esc(r.workers.join(", "))}${r.rework ? " · переделка" : ""}`;
+    body = `<div class="res-line">Закончите — пикните титульник ещё раз и нажмите «Готово».</div>`;
+  } else if (R.kind === "defect") {
+    head = `<div class="res-head bad">Брак записан: ${esc(R.deal.number)}</div>`;
+    sub = `Участок «${esc(R.section.name)}» · ${esc(R.reason)} · ${R.fault ? "вина рабочего" : "не вина рабочего"}`;
+    body = `<div class="res-line">Делали: <b>${esc(r.workers.join(", ") || "нет отметок")}</b></div>
+      <div class="res-line">Политика: ${esc(r.policy)}</div>
+      ${r.deducted ? `<div class="res-line">Снято с начислений: <b>${esc(rub(r.deducted))}</b></div>` : ""}
+      <div class="res-note">Заказ вернулся на участок, после переделки придёт обратно на ОТК.</div>`;
+  } else if (r.result === "problem") {
+    head = `<div class="res-head bad">⚠ Проблема отправлена мастеру</div>`;
+    sub = `${esc(r.deal)}: ${esc(R.reason)}`;
+    body = `<div class="res-line">Стадия заказа не меняется. Когда решится — пикните бейдж, титульник и «Начал».</div>`;
+  } else {
+    head = `<div class="res-head ok">✓ ${r.result === "remark" ? "Готово с замечанием" : "Готово"}: ${esc(r.deal)}</div>`;
+    if (r.result === "remark") sub = esc(R.reason);
+    body = `<div class="earn">${r.earnings.map((e) => `<div class="earn-row"><b>${esc(e.name)}</b>: <span class="plus">+${esc(rub(e.amount))}</span>
+        · <span class="tot">сегодня ${esc(rub(e.today))}</span> · <span class="tot">за месяц ${esc(rub(e.month))}</span></div>`).join("")}</div>
+      ${r.note ? `<div class="res-note">${esc(r.note)}</div>` : ""}
+      ${r.shadow && r.earnings.length ? `<div class="res-note">Теневой режим — суммы считаются, но не к выплате.</div>` : ""}
+      ${r.next_stage ? `<div class="res-line">Заказ ушёл на: <b>${esc(r.next_stage)}</b></div>` : ""}
+      ${(r.warnings || []).length ? `<div class="warns" style="margin:14px 0 0">${r.warnings.map((w) => `<div class="warn">${esc(w)}</div>`).join("")}</div>` : ""}`;
+  }
+  return `<div class="result" role="button" tabindex="-1" aria-label="Вернуться к очереди">
+    ${head}${sub ? `<div class="res-sub">${sub}</div>` : ""}${body}
+    <div class="countdown" style="animation-duration:${R.ms}ms"></div>
+    <div class="res-note">Нажмите, чтобы вернуться к очереди.</div>
+  </div>`;
+}
+
+function renderPanel() {
+  if (!st.T) return;
+  const dis = st.busy ? "disabled" : "";
+  const v = { idle: viewIdle, deal: viewDeal, remark: viewRemark, problem: viewProblem, defect: viewDefect, result: viewResult }[st.view] || viewIdle;
+  $("panel").innerHTML = v(dis);
+}
+
+function renderChips() {
+  const el = $("chips");
+  el.hidden = !st.badges.length;
+  el.innerHTML = st.badges.map((b) => `<span class="chip">${esc(b.name)}<small>сегодня ${esc(rub(b.today))}</small>
+      <button type="button" data-unbadge="${b.id}" aria-label="Убрать ${esc(b.name)}">×</button></span>`).join("");
+}
+
+function queueItem(d, isNext) {
+  const u = urgency(d.shipDate);
+  const tags = [];
+  if (isNext) tags.push(`<span class="tag next">берите следующим</span>`);
+  if (d.problem) tags.push(`<span class="tag problem">⚠ проблема: ${esc(d.problem)}</span>`);
+  if (d.rework) tags.push(`<span class="tag rework">переделка</span>`);
+  if (d.working && d.working.length) tags.push(`<span class="tag work">в работе: ${esc(d.working.join(", "))}</span>`);
+  for (const v of d.volumes || []) tags.push(`<span class="tag vol">${esc(v)}</span>`);
+  const showTitle = d.title && d.title !== d.client && d.title !== d.number;
+  return `<button type="button" class="q-item ${u}" data-code="${esc(d.number || d.id)}">
+    <span class="q-top"><span class="q-num">${esc(d.number)}</span><span class="q-date">${esc(dateLabel(d.shipDate))}</span></span>
+    ${d.client ? `<span class="q-client">${esc(d.client)}</span>` : ""}
+    ${showTitle ? `<span class="q-title">${esc(d.title)}</span>` : ""}
+    ${tags.length ? `<span class="tags">${tags.join("")}</span>` : ""}
+  </button>`;
+}
+
+function renderSide() {
+  const T = st.T;
+  let html = "";
+  if (T.open.length) {
+    html += `<h3 class="side-h">Сейчас в работе <span class="count">${T.open.length}</span></h3><div class="side-list">` +
+      T.open.map((o) => `<button type="button" class="q-item open" data-code="${esc(o.number || o.deal_id)}">
+        <span class="q-top"><span class="q-num">${esc(o.number)}</span><span class="q-date">с ${esc(hhmm(o.started_at))}</span></span>
+        <span class="q-client">${esc(o.client || o.title)}</span>
+        <span class="tags"><span class="tag work">${esc(o.workers.join(", "))}</span>${o.rework ? `<span class="tag rework">переделка</span>` : ""}</span>
+      </button>`).join("") + `</div>`;
+  }
+  const nextId = (T.queue.find((d) => !(d.working && d.working.length)) || {}).id;
+  html += `<h3 class="side-h">Очередь участка <span class="count">${T.queue.length}</span></h3>` +
+    (T.queue.length ? `<div class="side-list">${T.queue.map((d) => queueItem(d, d.id === nextId)).join("")}</div>`
+                    : `<p class="empty">Очередь пуста — заказов на стадии участка нет.</p>`);
+  $("side").innerHTML = html;
+}
+
+function renderHeader() {
+  const sec = st.T.section;
+  $("secName").textContent = sec.name;
+  $("secKind").textContent = sec.kind === "otk" ? "ОТК — приёмка" : "Участок";
+  document.title = `${sec.name} — терминал`;
+}
+
+// Битрикс — не ошибка цеха: без связи отметки копятся на сервере и уйдут позже.
+function renderSync() {
+  const s = st.T.sync || {};
+  let html;
+  if (s.error) {
+    html = `<span class="dot warn"></span>Битрикс: нет связи${s.ok_at ? " с " + esc(hhmm(s.ok_at)) : ""}` +
+      `${s.pending ? ` · ждут отправки: ${s.pending}` : ""} — работаем дальше, всё уйдёт, когда связь вернётся`;
+  } else if (s.ok_at) {
+    html = `<span class="dot"></span>Битрикс: связь есть, обновлено ${esc(hhmm(s.ok_at))}${s.pending ? ` · ждут отправки: ${s.pending}` : ""}`;
+  } else {
+    html = `<span class="dot warn"></span>Битрикс: ещё не синхронизировался${s.pending ? ` · ждут отправки: ${s.pending}` : ""}`;
+  }
+  $("syncLine").innerHTML = html;
+}
+
+function renderAll() {
+  renderHeader();
+  renderChips();
+  renderPanel();
+  renderSide();
+  renderSync();
+}
+
+function setOffline(on) { $("offline").hidden = !on; }
+
+async function refresh() {
+  if (!st.sectionId) return;
+  try {
+    st.T = await api(`/api/terminal/${st.sectionId}`);
+    setOffline(false);
+  } catch (e) {
+    setOffline(e.message === NO_SERVER);
+    return;
+  }
+  renderHeader();
+  renderSide();
+  renderSync();
+  if (st.view === "idle") renderPanel();
+}
+
+function tick() {
+  const d = new Date();
+  $("clock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+  const dirty = st.view !== "idle" || st.badges.length;
+  if (dirty && st.view !== "result" && !st.busy && Date.now() - st.lastAction > IDLE_MS) goIdle();
+}
+
+/* ================= УЧАСТОК ================= */
+async function showPicker(err) {
+  clearInterval(pollTimer);
+  pollTimer = null;
+  st.sectionId = null;
+  $("app").hidden = true;
+  $("picker").hidden = false;
+  $("pickErr").hidden = !err;
+  $("pickErr").textContent = err || "";
+  document.title = "Терминал участка — DANIEL GROUP";
+  try {
+    const info = await api("/api/info");
+    setOffline(false);
+    $("pickList").innerHTML = info.sections.length
+      ? info.sections.map((s) => `<button type="button" class="big-btn btn-pick" data-id="${s.id}">${esc(s.name)}${s.kind === "otk" ? "<small>приёмка и брак</small>" : ""}</button>`).join("")
+      : `<p class="note">Участков ещё нет — заведите их в «Справочниках».</p>`;
+  } catch (e) {
+    if (e.message === NO_SERVER) setOffline(true);
+    $("pickList").innerHTML = `<div class="note err">${esc(e.message)}</div>
+      <div class="actions"><button type="button" onclick="showPicker()">Повторить</button></div>`;
+  }
+}
+$("pickList").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-id]");
+  if (b) openSection(Number(b.dataset.id));
+});
+
+async function openSection(id) {
+  let T;
+  try {
+    T = await api(`/api/terminal/${id}`);
+    setOffline(false);
+  } catch (e) {
+    if (e.message === NO_SERVER) {
+      setOffline(true);
+      setTimeout(() => openSection(id), 5000);
+      return;
+    }
+    lsDel(SEC_KEY);
+    showPicker(e.message);
+    return;
+  }
+  st.T = T;
+  st.sectionId = id;
+  lsSet(SEC_KEY, String(id));
+  if (new URLSearchParams(location.search).get("section") !== String(id)) history.replaceState(null, "", "/terminal?section=" + id);
+  $("picker").hidden = true;
+  $("app").hidden = false;
+  goIdle();
+  renderAll();
+  keepFocus();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(refresh, REFRESH_MS);
+}
+
+$("changeSection").addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!confirm("Сменить участок этого планшета?")) { keepFocus(); return; }
+  lsDel(SEC_KEY);
+  history.replaceState(null, "", "/terminal");
+  goIdle();
+  showPicker();
+});
+
+setInterval(tick, 1000);
+tick();
+const fromUrl = new URLSearchParams(location.search).get("section");
+const saved = fromUrl || lsGet(SEC_KEY);
+if (saved && /^\d+$/.test(saved)) openSection(Number(saved)); else showPicker();
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DANIEL GROUP — цех</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .screen { display: block; text-decoration: none; color: inherit; }
+  .screen:hover { border-color: var(--accent); }
+  .screen b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .addr { font-family: var(--mono); font-size: 14px; }
+  .terminals { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .terminals a { display: block; text-decoration: none; color: inherit; padding: 12px 14px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-2); font-weight: 600; font-size: 16px; }
+  .terminals a:hover { border-color: var(--accent); }
+  .terminals .addr { display: block; color: var(--text-dim); font-size: 12.5px; font-weight: 400; margin-top: 2px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <img src="/static/logo.png" alt="DANIEL GROUP">
+    <div>
+      <div class="brand">DANIEL GROUP</div>
+      <div class="sub">Цифровой учёт в цеху</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill warn" id="demoPill" hidden>демо-режим</span>
+  </header>
+
+  <div class="note" id="notConnected" hidden style="margin-bottom:16px">
+    Битрикс ещё не подключён. Откройте «Справочники» и вставьте входящий вебхук.
+  </div>
+
+  <div class="screens">
+    <a class="card screen" href="/tablo"><b>ТВ-табло</b><span class="hint">Стадии по дате отгрузки. Открыть на ТВ и нажать F11.</span></a>
+    <a class="card screen" href="/admin"><b>Справочники</b><span class="hint">Битрикс, люди и бейджи, участки и ставки, товары сделки, печать.</span></a>
+    <a class="card screen" href="/report"><b>Отчёт по сделке</b><span class="hint">Сделка за месяц по каждому сотруднику, правки, брак, Excel, закрытие месяца.</span></a>
+  </div>
+
+  <div class="card">
+    <h3 class="blk">Терминалы участков</h3>
+    <p class="hint">Откройте адрес терминала на планшете участка — он запомнит свой участок. Сканер в режиме клавиатуры,
+      после кода — Enter.</p>
+    <div class="terminals" id="terminals">…</div>
+  </div>
+
+  <div class="card">
+    <h3 class="blk">Адрес сервера для планшетов и ТВ</h3>
+    <div id="addresses" class="addr">…</div>
+  </div>
+</div>
+<script src="/static/common.js"></script>
+<script>
+api("/api/info").then((info) => {
+  $("addresses").innerHTML = info.addresses.map((a) => esc(a)).join("<br>");
+  const base = info.addresses[0] || location.origin;
+  $("terminals").innerHTML = info.sections.length
+    ? info.sections.map((s) => `<a href="/terminal?section=${s.id}">Терминал: ${esc(s.name)}
+        <span class="addr">${esc(base)}/terminal?section=${s.id}</span></a>`).join("")
+    : `<span class="hint">Участков ещё нет — заведите их в «Справочниках».</span>`;
+  $("notConnected").hidden = info.connected;
+  $("demoPill").hidden = !info.demo;
+}).catch((e) => toast(e.message, "err"));
+</script>
+</body>
+</html>
