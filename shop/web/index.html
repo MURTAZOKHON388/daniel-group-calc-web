@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DANIEL GROUP — цех</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .screen { display: block; text-decoration: none; color: inherit; }
+  .screen:hover { border-color: var(--accent); }
+  .screen b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .addr { font-family: var(--mono); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <img src="/static/logo.png" alt="DANIEL GROUP">
+    <div>
+      <div class="brand">DANIEL GROUP</div>
+      <div class="sub">Цифровой учёт в цеху</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill warn" id="demoPill" hidden>демо-режим</span>
+  </header>
+
+  <div class="note" id="notConnected" hidden style="margin-bottom:16px">
+    Битрикс ещё не подключён. Откройте «Справочники» и вставьте входящий вебхук.
+  </div>
+
+  <div class="screens">
+    <a class="card screen" href="/tablo"><b>ТВ-табло</b><span class="hint">Стадии по дате отгрузки. Открыть на ТВ и нажать F11.</span></a>
+    <a class="card screen" href="/admin"><b>Справочники</b><span class="hint">Битрикс, люди и бейджи, участки и ставки, товары сделки, печать.</span></a>
+  </div>
+
+  <div class="card">
+    <h3 class="blk">Адрес сервера для планшетов и ТВ</h3>
+    <div id="addresses" class="addr">…</div>
+    <p class="hint" style="margin:10px 0 0">Терминалы участков и отчёт по сделке — следующие этапы.</p>
+  </div>
+</div>
+<script src="/static/common.js"></script>
+<script>
+api("/api/info").then((info) => {
+  $("addresses").innerHTML = info.addresses.map((a) => esc(a)).join("<br>");
+  $("notConnected").hidden = info.connected;
+  $("demoPill").hidden = !info.demo;
+}).catch((e) => toast(e.message, "err"));
+</script>
+</body>
+</html>
