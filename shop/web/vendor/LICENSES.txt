@@ -1,4 +1,4 @@
-Сторонние библиотеки, лежат здесь, чтобы печать работала без интернета.
+Сторонние библиотеки, лежат здесь, чтобы печать и терминалы работали без интернета.
 
 qrcode.js — qrcode-generator 2.0.4, https://github.com/kazuhikoarase/qrcode-generator
 Copyright (c) 2009 Kazuhiko Arase. MIT License.
@@ -6,6 +6,10 @@ The word "QR Code" is registered trademark of DENSO WAVE INCORPORATED.
 
 JsBarcode.code128.min.js — JsBarcode 3.12.3, https://github.com/lindell/JsBarcode
 Copyright (c) 2016 Johan Lindell (johan@lindell.me). MIT License.
+
+jsQR.min.js — jsQR 1.4.0, https://github.com/cozmo/jsQR — распознавание QR с камеры
+терминала, если в браузере нет встроенного BarcodeDetector. Автор — Cosmo Wolfe (cozmo).
+Apache License 2.0, полный текст — jsQR.LICENSE.txt. Файл сжат terser, код не менялся.
 
 MIT License
 

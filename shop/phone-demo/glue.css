@@ -1,0 +1,17 @@
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+:root[data-theme="dark"] { color-scheme: dark; }
+.demo-bar { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 8px 16px;
+  background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 14px; }
+.demo-tag { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--on-accent);
+  background: var(--accent); border-radius: 100px; padding: 2px 10px; }
+.demo-note { color: var(--text-dim); min-width: 0; }
+.demo-sp { flex: 1 1 auto; }
+.demo-btn { min-height: 40px; font-size: 14px; padding: 6px 14px; border-radius: 100px; }
+.demo-help { color: var(--text-dim); font-size: 16px; margin: 14px 0 0; }
+.demo-codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 8px; }
+.demo-code { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; min-height: 64px;
+  padding: 10px 14px; border-radius: 10px; background: var(--surface); font-weight: 400; }
+.demo-code b { font: 700 18px var(--mono); }
+.demo-code span { color: var(--text-dim); font-size: 14px; }
+.demo-code.master { border-color: var(--accent); background: var(--accent-soft); }
+@media (max-width: 480px) { .demo-note { display: none; } }

@@ -8,7 +8,7 @@
 <style>
   /* Терминал смотрят с вытянутой руки и жмут пальцем в перчатке: всё крупно, на экране — одно действие. */
   body { font-size: 18px; }
-  .term { max-width: 860px; margin: 0 auto; padding: 14px 16px 10px; min-height: 100vh; display: flex; flex-direction: column; }
+  .term { max-width: 860px; margin: 0 auto; padding: 14px 16px 10px; min-height: 100vh; display: flex; flex-direction: column; position: relative; }
 
   .offline { position: sticky; top: 0; z-index: 40; background: var(--err); color: #fff; font-weight: 700;
     text-align: center; padding: 10px 16px; font-size: 18px; }
@@ -33,6 +33,25 @@
 
   .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
   .panel.idle { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 52vh; }
+  #app.cam-on .panel.idle { flex: 0 0 auto; min-height: 0; }
+
+  /* Камера вместо сканера: в ожидании — крупно, на остальных экранах — маленькая в углу и продолжает читать. */
+  .cam { position: relative; width: 100%; max-width: 460px; aspect-ratio: 4 / 3; margin: 0 auto 12px; border-radius: 16px;
+    overflow: hidden; background: #000; border: 3px solid var(--border); transition: border-color .15s; }
+  .cam video { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .cam.mirror video { transform: scaleX(-1); }
+  .cam-frame { position: absolute; inset: 16%; border: 3px solid rgba(255, 255, 255, .9); border-radius: 14px;
+    box-shadow: 0 0 0 999px rgba(0, 0, 0, .22); pointer-events: none; }
+  .cam.hit { border-color: var(--ok); }
+  .cam.hit .cam-frame { border-color: var(--ok); }
+  .cam-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: 16px; background: var(--surface-2); color: var(--text); font-size: 17px; line-height: 1.4; }
+  .cam-flip { position: absolute; right: 8px; bottom: 8px; width: 52px; height: 52px; padding: 0; justify-content: center;
+    border-radius: 50%; font-size: 24px; background: var(--surface); }
+  .cam.small { position: absolute; top: 12px; right: 16px; width: 128px; margin: 0; border-width: 2px; border-radius: 12px; z-index: 5; }
+  .cam.small .cam-flip, .cam.small .cam-msg, .cam-msg:not([hidden]) + .cam-flip { display: none; }
+  .cam.small .cam-frame { inset: 10%; border-width: 2px; }
+  #app.cam-small header { min-height: 108px; padding-right: 144px; }
 
   /* Ожидание: одна надпись */
   .prompt { text-align: center; padding: 10px 4px; }
@@ -200,12 +219,19 @@
              enterkeyhint="go" placeholder="DG-1234 или W-0001" aria-label="Код со сканера">
       <button type="button" class="primary" id="scanGo">OK</button>
     </div>
+    <div class="cam" id="cam" hidden>
+      <video id="camVideo" muted playsinline autoplay></video>
+      <div class="cam-frame" aria-hidden="true"></div>
+      <div class="cam-msg" id="camMsg" hidden></div>
+      <button type="button" class="cam-flip" id="camFlip" aria-label="Другая камера: фронтальная или задняя">⟲</button>
+    </div>
     <div class="chips" id="chips" hidden></div>
     <div class="panel" id="panel" aria-live="polite"></div>
   </main>
 
   <footer class="foot">
     <button type="button" class="foot-btn" id="queueBtn">Очередь участка: <b id="qCount">0</b></button>
+    <button type="button" class="foot-btn" id="camBtn" aria-pressed="false">📷 Камера</button>
     <button type="button" class="foot-btn" id="kbd" aria-pressed="false">⌨ Ввести код</button>
     <span class="sync-warn" id="syncLine"></span>
     <span class="spacer"></span>
@@ -223,6 +249,7 @@
   </div>
 </div>
 
+<script src="/static/vendor/jsQR.min.js"></script>
 <script src="/static/common.js"></script>
 <script>
 /* Терминал участка. На экране одно: «Отсканируйте штрихкод или QR» — бейдж или титульник, терминал
@@ -590,8 +617,8 @@ function miniDeal(d) {
 function viewIdle() {
   const hasBadges = st.badges.length > 0;
   return `<div class="prompt">
-    ${SCAN_SVG}
-    <div class="prompt-big">${hasBadges ? "Теперь отсканируйте заказ" : "Отсканируйте штрихкод или QR"}</div>
+    ${cam.facing ? "" : SCAN_SVG}
+    <div class="prompt-big">${hasBadges ? "Теперь отсканируйте заказ" : cam.stream ? "Поднесите QR к камере" : "Отсканируйте штрихкод или QR"}</div>
     <div class="prompt-sub">${hasBadges ? "титульник заказа · вдвоём — сначала второй бейдж" : "бейдж или титульник заказа"}</div>
   </div>`;
 }
@@ -617,7 +644,7 @@ function viewAway(dis) {
       ${where}
       <div class="away-text">Это не очередь участка «${esc(sec.name)}». Начать без очереди можно только
         с разрешения начальника производства.</div>
-      <div class="ask">Пикните бейдж начальника производства</div>
+      <div class="ask">Отсканируйте бейдж начальника производства</div>
     </div>
     <div class="row-end"><button class="ghost-btn" data-act="cancel" ${dis}>Отмена</button></div>`;
 }
@@ -737,6 +764,9 @@ function renderPanel() {
   const v = { idle: viewIdle, deal: viewDeal, remark: viewRemark, problem: viewProblem, defect: viewDefect, result: viewResult }[st.view] || viewIdle;
   $("panel").classList.toggle("idle", st.view === "idle");
   $("panel").innerHTML = v(dis);
+  const small = !!cam.facing && st.view !== "idle";
+  $("cam").classList.toggle("small", small);
+  $("app").classList.toggle("cam-small", small);
 }
 
 function renderChips() {
@@ -829,12 +859,137 @@ function tick() {
   if (dirty && st.view !== "result" && !st.busy && Date.now() - st.lastAction > IDLE_MS) goIdle();
 }
 
+/* ================= КАМЕРА ================= */
+// Планшет без сканера: бейдж или титульник подносят к фронтальной камере. QR читает встроенный
+// BarcodeDetector (Chrome на Android, он же читает и штрихкод), иначе — jsQR из vendor.
+// Камера в браузере работает только на защищённом адресе — см. README, раздел «Камера».
+const CAM_KEY = "dg_terminal_camera";  // "user" — фронтальная, "environment" — задняя, "" — выключена
+const CAM_DENIED = "Нет доступа к камере. Разрешите камеру для этой страницы в настройках браузера.";
+const cam = { facing: lsGet(CAM_KEY) || "", stream: null, detector: undefined, timer: null, canvas: null, ctx: null,
+              seen: "", seenAt: 0, firedAt: 0, starting: false };
+const video = $("camVideo");
+
+function camMessage(text) {
+  $("camMsg").hidden = !text;
+  $("camMsg").textContent = text || "";
+}
+
+async function makeDetector() {
+  try {
+    if (!("BarcodeDetector" in window)) return null;
+    const want = (await BarcodeDetector.getSupportedFormats()).filter((f) => f === "qr_code" || f === "code_128");
+    return want.length ? new BarcodeDetector({ formats: want }) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function camStop() {
+  clearTimeout(cam.timer);
+  if (cam.stream) cam.stream.getTracks().forEach((t) => t.stop());
+  cam.stream = null;
+  video.srcObject = null;
+}
+
+async function camStart() {
+  if (cam.starting || $("app").hidden || document.hidden) return;
+  camStop();
+  $("cam").hidden = false;
+  $("cam").classList.toggle("mirror", cam.facing === "user");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    camMessage(window.isSecureContext ? "Этот браузер не умеет работать с камерой."
+      : "Камера работает только на защищённом адресе (https). Как настроить планшет — README, раздел «Камера».");
+    return;
+  }
+  camMessage("Включаем камеру…");
+  cam.starting = true;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false, video: { facingMode: { ideal: cam.facing }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (e) {
+    cam.starting = false;
+    camMessage(e && e.name === "NotAllowedError" ? CAM_DENIED
+      : e && e.name === "NotFoundError" ? "Камера не найдена." : "Камера не включилась: " + ((e && e.message) || e));
+    return;
+  }
+  cam.starting = false;
+  if (!cam.facing || $("app").hidden) { stream.getTracks().forEach((t) => t.stop()); return; }  // выключили, пока ждали
+  cam.stream = stream;
+  video.srcObject = stream;
+  try { await video.play(); } catch (e) { /* без звука играет и так */ }
+  camMessage("");
+  if (st.view === "idle") renderPanel();
+  if (cam.detector === undefined) cam.detector = await makeDetector();
+  camLoop();
+}
+
+async function camRead() {
+  if (cam.detector) {
+    const found = await cam.detector.detect(video);
+    return found.length ? found[0].rawValue : "";
+  }
+  if (!window.jsQR || !video.videoWidth) return "";
+  const w = Math.min(640, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+  if (!cam.canvas) {
+    cam.canvas = document.createElement("canvas");
+    cam.ctx = cam.canvas.getContext("2d", { willReadFrequently: true });
+  }
+  cam.canvas.width = w;
+  cam.canvas.height = h;
+  cam.ctx.drawImage(video, 0, 0, w, h);
+  const res = jsQR(cam.ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
+  return res ? res.data : "";
+}
+
+// Тот же код не срабатывает снова, пока его не уберут из кадра: титульник держат, а кнопки жмут.
+async function camLoop() {
+  if (!cam.stream) return;
+  try {
+    if (video.readyState >= 2 && !st.busy) {
+      const code = String(await camRead()).trim(), now = Date.now();
+      if (code) {
+        const fresh = code !== cam.seen || now - cam.seenAt > 1500;
+        cam.seen = code;
+        cam.seenAt = now;
+        if (fresh && now - cam.firedAt > 1000) {
+          cam.firedAt = now;
+          touch();
+          $("cam").classList.add("hit");
+          setTimeout(() => $("cam").classList.remove("hit"), 400);
+          submitScan(code);
+        }
+      }
+    }
+  } catch (e) { /* кадр не прочитался — читаем следующий */ }
+  cam.timer = setTimeout(camLoop, cam.detector ? 150 : 220);
+}
+
+function camSet(facing) {
+  cam.facing = facing;
+  lsSet(CAM_KEY, facing);
+  $("camBtn").classList.toggle("on", !!facing);
+  $("camBtn").setAttribute("aria-pressed", String(!!facing));
+  $("app").classList.toggle("cam-on", !!facing);
+  if (facing) camStart();
+  else { camStop(); camMessage(""); $("cam").hidden = true; }
+  if (st.T) renderPanel();
+}
+$("camBtn").addEventListener("click", () => camSet(cam.facing ? "" : "user"));
+$("camFlip").addEventListener("click", () => camSet(cam.facing === "user" ? "environment" : "user"));
+// Свёрнутая вкладка камеру не держит.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) camStop();
+  else if (cam.facing && !cam.stream) camStart();
+});
+
 /* ================= УЧАСТОК ================= */
 async function showPicker(err) {
   clearInterval(pollTimer);
   pollTimer = null;
   st.sectionId = null;
   closeSheet();
+  camStop();
   $("app").hidden = true;
   $("picker").hidden = false;
   $("pickErr").hidden = !err;
@@ -883,6 +1038,7 @@ async function openSection(id) {
   keepFocus();
   clearInterval(pollTimer);
   pollTimer = setInterval(refresh, REFRESH_MS);
+  if (cam.facing) camSet(cam.facing);
   if (new URLSearchParams(location.search).get("section") !== String(id)) setUrl("/terminal?section=" + id);
 }
 

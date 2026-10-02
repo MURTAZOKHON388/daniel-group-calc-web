@@ -8,6 +8,8 @@
     python shop/server.py                    # порт 8080, база shop/data/shop.db
     python shop/server.py --port 8090 --db D:/cex/shop.db
     python shop/server.py --demo             # поддельный Битрикс и демо-данные
+    python shop/server.py --cert shop/data/cert.pem --key shop/data/key.pem
+                                             # https — камера планшета вместо сканера (README, «Камера»)
 
 Экраны:
     /            список экранов и адреса для планшетов
@@ -24,6 +26,7 @@ import hmac
 import json
 import re
 import socket
+import ssl
 import sys
 import threading
 import traceback
@@ -109,6 +112,14 @@ class Handler(BaseHTTPRequestHandler):
     app: "App"
 
     # ---------- транспорт ----------
+    def setup(self):
+        # https: рукопожатие — в потоке запроса, чтобы медленный планшет не держал остальных.
+        if isinstance(self.request, ssl.SSLSocket):
+            self.request.settimeout(20)
+            self.request.do_handshake()
+            self.request.settimeout(None)
+        super().setup()
+
     def log_message(self, fmt, *args):
         if self.command == "POST" or (len(args) > 1 and str(args[1])[:1] in "45"):
             sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
@@ -220,7 +231,7 @@ class Handler(BaseHTTPRequestHandler):
         s = logic.get_settings(conn)
         self._json({
             "sections": [dict(id=r["id"], name=r["name"], kind=r["kind"]) for r in logic.sections(conn)],
-            "addresses": [f"http://{ip}:{self.server.server_address[1]}" for ip in lan_addresses()],
+            "addresses": [f"{self.app.scheme}://{ip}:{self.server.server_address[1]}" for ip in lan_addresses()],
             "connected": bool(s["webhook"]),
             "demo": self.app.demo,
         })
@@ -595,15 +606,30 @@ class App:
         self.syncer = syncer
         self.demo_client = demo_client
         self.demo = demo_client is not None
+        self.scheme = "http"
 
     def client_for(self, webhook: str):
         return self.demo_client if self.demo else Bitrix(webhook)
 
 
-def make_server(app: App, host: str, port: int) -> ThreadingHTTPServer:
+class ShopServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        # Планшет не принял сертификат или оборвал связь — это не ошибка сервера, не шумим.
+        if isinstance(sys.exc_info()[1], (ssl.SSLError, ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
+
+def make_server(app: App, host: str, port: int, cert: str | None = None, key: str | None = None) -> ThreadingHTTPServer:
     handler = type("BoundHandler", (Handler,), {"app": app})
-    srv = ThreadingHTTPServer((host, port), handler)
-    srv.daemon_threads = True
+    srv = ShopServer((host, port), handler)
+    if cert:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(cert, key)
+        srv.socket = ctx.wrap_socket(srv.socket, server_side=True, do_handshake_on_connect=False)
+        app.scheme = "https"
     return srv
 
 
@@ -614,7 +640,11 @@ def main(argv=None) -> None:
     ap.add_argument("--db", default=str(db.DEFAULT_DB))
     ap.add_argument("--interval", type=float, default=60, help="как часто забирать сделки из Битрикса, сек")
     ap.add_argument("--demo", action="store_true", help="поддельный Битрикс и демо-данные (база data/demo.db)")
+    ap.add_argument("--cert", help="сертификат для https (PEM): камера планшета работает только по https")
+    ap.add_argument("--key", help="закрытый ключ сертификата (PEM)")
     args = ap.parse_args(argv)
+    if bool(args.cert) != bool(args.key):
+        ap.error("для https нужны оба файла: --cert и --key")
 
     demo_client = None
     db_path = args.db
@@ -637,11 +667,11 @@ def main(argv=None) -> None:
     syncer = sync.Syncer(db_path, make_client, interval=args.interval)
     syncer.start()
     app = App(db_path, syncer, demo_client)
-    srv = make_server(app, args.host, args.port)
+    srv = make_server(app, args.host, args.port, args.cert, args.key)
     print("Цеховой сервер DANIEL GROUP" + (" — ДЕМО" if demo_client else ""))
     print(f"  база: {db_path}")
     for ip in lan_addresses():
-        print(f"  открыть: http://{ip}:{args.port}/")
+        print(f"  открыть: {app.scheme}://{ip}:{args.port}/")
     print("  остановить: Ctrl+C")
     try:
         srv.serve_forever()

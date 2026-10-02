@@ -388,6 +388,45 @@ class TestReport(ShopCase):
         minidom.parseString(z.read("xl/worksheets/sheet1.xml"))
 
 
+class TestHttps(unittest.TestCase):
+    """Камера на планшете работает только по https: сервер умеет отдавать его со своим сертификатом."""
+
+    def test_https(self):
+        import shutil
+        import ssl
+        import subprocess
+        import tempfile
+        if not shutil.which("openssl"):
+            self.skipTest("нет openssl, чтобы сделать тестовый сертификат")
+        with tempfile.TemporaryDirectory() as tmp:
+            cert, key = Path(tmp) / "cert.pem", Path(tmp) / "key.pem"
+            subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=test",
+                            "-keyout", str(key), "-out", str(cert)], check=True, capture_output=True)
+            conn = db.connect(Path(tmp) / "s.db")
+            db.init(conn)
+            demo.seed(conn)
+            conn.close()
+            bx = demo.FakeBitrix()
+            app = server.App(Path(tmp) / "s.db", sync.Syncer(Path(tmp) / "s.db", lambda s: bx, interval=3600), bx)
+            srv = server.make_server(app, "127.0.0.1", 0, str(cert), str(key))
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE  # самоподписанный, как на планшетах после «Всё равно перейти»
+                url = f"https://127.0.0.1:{srv.server_address[1]}"
+                with urllib.request.urlopen(url + "/api/info", context=ctx, timeout=10) as r:
+                    info = json.loads(r.read())
+                self.assertTrue(all(a.startswith("https://") for a in info["addresses"]))
+                with urllib.request.urlopen(url + "/static/vendor/jsQR.min.js", context=ctx, timeout=10) as r:
+                    self.assertIn(b"jsQR", r.read(400))
+                with self.assertRaises((urllib.error.URLError, ConnectionError)):  # обычный http на https-порт не отвечает
+                    urllib.request.urlopen(url.replace("https", "http") + "/api/info", timeout=5)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+
 class TestMigrations(unittest.TestCase):
     def test_old_db_gets_new_columns(self):
         conn = db.connect(":memory:")
@@ -534,7 +573,7 @@ class TestHttp(unittest.TestCase):
 
     def test_pages(self):
         for path in ("/", "/terminal", "/admin", "/print", "/static/common.css", "/static/common.js", "/static/logo.png",
-                     "/static/vendor/qrcode.js", "/static/vendor/JsBarcode.code128.min.js"):
+                     "/static/vendor/qrcode.js", "/static/vendor/JsBarcode.code128.min.js", "/static/vendor/jsQR.min.js"):
             code, _ = self.req(path)
             self.assertEqual(code, 200, path)
         code, html = self.req("/tablo")
