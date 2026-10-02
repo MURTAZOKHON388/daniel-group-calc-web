@@ -5,10 +5,11 @@
 (mock.js повторяет правила logic.py на демо-данных demo.py). Нужен, чтобы
 показать терминал и проверить камеру с телефона по обычной ссылке.
 
-    python shop/phone-demo/build.py                    # → shop/phone-demo/index.html
+    python shop/phone-demo/build.py                    # → docs/terminal-demo.html (GitHub Pages)
     python shop/phone-demo/build.py --artifact out.html # то же без <html>/<head> — для страницы в Claude
 
-После правок терминала пересоберите и закоммитьте index.html.
+Готовая страница лежит в docs/ и публикуется на GitHub Pages: камера в браузере
+работает только по https. После правок терминала пересоберите и закоммитьте её.
 """
 
 from __future__ import annotations
@@ -94,8 +95,9 @@ def main() -> None:
     page = build()
     head = ('<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n')
-    (D / "index.html").write_text(head + page + "</body>\n</html>\n", encoding="utf-8")
-    print(f"index.html: {len(page) // 1024} КБ")
+    out = ROOT / "docs" / "terminal-demo.html"
+    out.write_text(head + page + "</body>\n</html>\n", encoding="utf-8")
+    print(f"{out.relative_to(ROOT)}: {len(page) // 1024} КБ")
     if args.artifact:
         Path(args.artifact).write_text(page, encoding="utf-8")
 

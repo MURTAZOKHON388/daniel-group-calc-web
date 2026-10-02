@@ -128,9 +128,11 @@ python shop/server.py --demo     # попробовать на поддельн�
 QR читается в любом браузере, штрихкод камерой — только в Chrome на Android.
 На бейджах и титульниках печатаются оба.
 
-**Демо для телефона** — [`shop/phone-demo/index.html`](shop/phone-demo/index.html):
-терминал без сервера и Битрикса на примерных данных, с камерой и «тест-сканером».
-После правок терминала пересоберите: `python shop/phone-demo/build.py`.
+**Демо для телефона** — [`docs/terminal-demo.html`](docs/terminal-demo.html), на GitHub Pages:
+`https://<логин>.github.io/daniel-group-calc-web/terminal-demo.html#kromka` (после `#` —
+участок: `raspil`, `kromka`, `prisadka`, `upakovka`, `otk`). Терминал без сервера и
+Битрикса на примерных данных, с камерой и «тест-сканером». Собирается из настоящего
+терминала: после правок `shop/web/terminal.html` — `python shop/phone-demo/build.py`.
 
 Пилот начните с **присадки**: один участок, один планшет, пара бейджей. Когда
 там приживётся — остальные участки, потом месяц теневого режима («Режимы»).
