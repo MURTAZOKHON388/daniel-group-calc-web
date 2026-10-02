@@ -1,6 +1,7 @@
 """
-Собирает webapp/index.html из app_template.html, встраивая прайсы из
-assets/*.csv как JSON прямо в страницу.
+Собирает docs/index.html из app_template.html, встраивая прайсы из
+assets/*.csv как JSON прямо в страницу, и docs/tablo.html (табло цеха)
+из tablo_template.html — туда встраивается только логотип.
 
 Единый источник цен: те же CSV, что использует build_excel.py. Правишь
 прайс — перезапускаешь этот скрипт — переопубликовываешь артефакт. Цифры
@@ -20,6 +21,8 @@ HERE = Path(__file__).resolve().parent
 ASSETS = HERE / "assets"
 TEMPLATE = HERE / "app_template.html"
 OUTPUT = HERE.parent / "docs" / "index.html"
+TABLO_TEMPLATE = HERE / "tablo_template.html"
+TABLO_OUTPUT = HERE.parent / "docs" / "tablo.html"
 
 PLACEHOLDER_LDSP = "/*__LDSP_DATA__*/[]"
 PLACEHOLDER_KROMKA = "/*__KROMKA_DATA__*/[]"
@@ -110,6 +113,18 @@ def main() -> None:
     print(f"  декоров ЛДСП: {len(ldsp)}")
     print(f"  типов кромки: {len(kromka)}")
     print(f"  прочих позиций: {len(misc)}")
+
+    build_tablo()
+
+
+def build_tablo() -> None:
+    html = TABLO_TEMPLATE.read_text(encoding="utf-8")
+    if PLACEHOLDER_LOGO not in html:
+        raise ValueError(f"В шаблоне табло не найден плейсхолдер: {PLACEHOLDER_LOGO}")
+    html = html.replace(PLACEHOLDER_LOGO, load_logo_data_uri())
+    TABLO_OUTPUT.write_text(html, encoding="utf-8")
+    size_kb = TABLO_OUTPUT.stat().st_size / 1024
+    print(f"Готово: {TABLO_OUTPUT} ({size_kb:.0f} КБ)")
 
 
 if __name__ == "__main__":
