@@ -254,6 +254,8 @@ function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* без п
 function pad(n) { return String(n).padStart(2, "0"); }
 function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function names(list) { return list.map((b) => b.name).join(", "); }
+// Адрес с участком — для закладки на планшете. Где менять адрес нельзя (встроенный просмотр), оставляем как есть.
+function setUrl(url) { try { history.replaceState(null, "", url); } catch (e) { /* адрес — не главное */ } }
 function touch() { st.lastAction = Date.now(); }
 
 /* ================= ЗВУК ================= */
@@ -873,7 +875,6 @@ async function openSection(id) {
   st.T = T;
   st.sectionId = id;
   lsSet(SEC_KEY, String(id));
-  if (new URLSearchParams(location.search).get("section") !== String(id)) history.replaceState(null, "", "/terminal?section=" + id);
   $("picker").hidden = true;
   $("app").hidden = false;
   closeSheet();
@@ -882,13 +883,14 @@ async function openSection(id) {
   keepFocus();
   clearInterval(pollTimer);
   pollTimer = setInterval(refresh, REFRESH_MS);
+  if (new URLSearchParams(location.search).get("section") !== String(id)) setUrl("/terminal?section=" + id);
 }
 
 $("changeSection").addEventListener("click", (e) => {
   e.preventDefault();
   if (!confirm("Сменить участок этого планшета?")) { keepFocus(); return; }
   lsDel(SEC_KEY);
-  history.replaceState(null, "", "/terminal");
+  setUrl("/terminal");
   goIdle();
   showPicker();
 });
