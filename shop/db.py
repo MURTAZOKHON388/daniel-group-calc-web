@@ -151,7 +151,8 @@ CREATE TABLE IF NOT EXISTS defect_workers (
 CREATE TABLE IF NOT EXISTS months (
   month      TEXT PRIMARY KEY,
   closed_at  TEXT NOT NULL,
-  salaries   TEXT NOT NULL DEFAULT '{}'   -- оклады на момент закрытия, JSON {worker_id: ₽}
+  salaries   TEXT NOT NULL DEFAULT '{}',  -- оклады на момент закрытия, JSON {worker_id: ₽}
+  shadow     INTEGER NOT NULL DEFAULT 0   -- теневой режим на момент закрытия
 );
 
 -- Всё, что пишется в Битрикс, сначала ложится сюда и уходит, когда есть связь.
@@ -192,6 +193,7 @@ def connect(path: str | Path = DEFAULT_DB) -> sqlite3.Connection:
 MIGRATIONS = [
     ("workers", "is_master", "INTEGER NOT NULL DEFAULT 0"),
     ("sessions", "approved_by", "INTEGER"),
+    ("months", "shadow", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

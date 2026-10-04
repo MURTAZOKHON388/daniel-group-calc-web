@@ -672,6 +672,12 @@ def section_volumes(conn: sqlite3.Connection, deal_id: int, ops: list[sqlite3.Ro
 
 # ================= ОТЧЁТ =================
 
+def check_month(month: str) -> str:
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month or ""):
+        raise ShopError("Неверный месяц")
+    return month
+
+
 def month_closed(conn: sqlite3.Connection, month: str) -> bool:
     return bool(conn.execute("SELECT 1 FROM months WHERE month = ?", (month,)).fetchone())
 
@@ -717,8 +723,7 @@ def manual_line(conn: sqlite3.Connection, month: str, worker_id: int, amount: fl
     """Ручное начисление или удержание (наладка, уборка, премия)."""
     if not note.strip():
         raise ShopError("Укажите, за что")
-    if not re.fullmatch(r"\d{4}-\d{2}", month or ""):
-        raise ShopError("Неверный месяц")
+    check_month(month)
     with tx(conn):
         _check_open(conn, month)
         if not conn.execute("SELECT 1 FROM workers WHERE id = ?", (worker_id,)).fetchone():
@@ -730,23 +735,33 @@ def manual_line(conn: sqlite3.Connection, month: str, worker_id: int, amount: fl
 
 
 def close_month(conn: sqlite3.Connection, month: str) -> None:
-    if month >= now().strftime("%Y-%m"):
+    """Оклады и теневой режим фиксируются: выключат режим позже — этот месяц останется теневым."""
+    if check_month(month) >= now().strftime("%Y-%m"):
         raise ShopError("Закрыть можно только прошедший месяц")
     with tx(conn):
         _check_open(conn, month)
         salaries = {str(r["id"]): r["salary"] for r in conn.execute("SELECT id, salary FROM workers")}
-        conn.execute("INSERT INTO months(month, closed_at, salaries) VALUES(?, ?, ?)",
-                     (month, now_s(), json.dumps(salaries)))
+        conn.execute("INSERT INTO months(month, closed_at, salaries, shadow) VALUES(?, ?, ?, ?)",
+                     (month, now_s(), json.dumps(salaries), 1 if setting(conn, "shadow_mode") == "1" else 0))
 
 
 def reopen_month(conn: sqlite3.Connection, month: str) -> None:
+    check_month(month)
     with tx(conn):
         conn.execute("DELETE FROM months WHERE month = ?", (month,))
 
 
+def report_months(conn: sqlite3.Connection) -> list[dict]:
+    """Месяцы, за которые есть строки или брак, закрытые и текущий — новые сверху."""
+    closed = {r[0] for r in conn.execute("SELECT month FROM months")}
+    found = closed | {now().strftime("%Y-%m")}
+    found |= {r[0] for r in conn.execute("SELECT DISTINCT month FROM ledger")}
+    found |= {r[0] for r in conn.execute("SELECT DISTINCT substr(reported_at, 1, 7) FROM defects")}
+    return [{"month": m, "closed": m in closed} for m in sorted(found, reverse=True)]
+
+
 def month_report(conn: sqlite3.Connection, month: str) -> dict:
-    if not re.fullmatch(r"\d{4}-\d{2}", month or ""):
-        raise ShopError("Неверный месяц")
+    check_month(month)
     closed = conn.execute("SELECT * FROM months WHERE month = ?", (month,)).fetchone()
     snap = json.loads(closed["salaries"]) if closed else None
 
@@ -786,6 +801,16 @@ def month_report(conn: sqlite3.Connection, month: str) -> dict:
            WHERE substr(f.reported_at, 1, 7) = ? ORDER BY f.reported_at""",
         (month,),
     )]
+    # Брак по вине рабочего: человек × участок. Имена в defects[].workers склеены
+    # через запятую — для статистики не резать их, а брать отсюда.
+    matrix = [dict(r) for r in conn.execute(
+        """SELECT dw.worker_id, w.name AS worker, f.section_id, s.name AS section, COUNT(*) AS count
+           FROM defect_workers dw JOIN defects f ON f.id = dw.defect_id
+           JOIN sections s ON s.id = f.section_id JOIN workers w ON w.id = dw.worker_id
+           WHERE f.worker_fault = 1 AND substr(f.reported_at, 1, 7) = ?
+           GROUP BY dw.worker_id, f.section_id ORDER BY s.sort, s.id, w.name""",
+        (month,),
+    )]
     defect_count: dict[int, int] = {}
     for r in conn.execute(
         """SELECT dw.worker_id, COUNT(*) AS n FROM defect_workers dw JOIN defects f ON f.id = dw.defect_id
@@ -801,6 +826,8 @@ def month_report(conn: sqlite3.Connection, month: str) -> dict:
             continue
         mine = [ln for ln in lines if ln["worker_id"] == w["id"]]
         salary = snap.get(str(w["id"]), 0) if snap is not None else w["salary"]
+        if not mine and not salary:
+            continue  # ни оклада, ни строк — платить нечего (например, начальник со своим бейджем)
         piece = sum(ln["amount"] for ln in mine if ln["kind"] == "piece")
         defect = sum(ln["amount"] for ln in mine if ln["kind"] == "defect")
         adjust = sum(ln["amount"] for ln in mine if ln["kind"] in ("adjust", "manual"))
@@ -825,9 +852,11 @@ def month_report(conn: sqlite3.Connection, month: str) -> dict:
         "month": month,
         "closed": bool(closed),
         "closed_at": closed["closed_at"] if closed else "",
-        "shadow": setting(conn, "shadow_mode") == "1",
+        # Закрытый месяц — каким был при закрытии, открытый — по текущей настройке.
+        "shadow": bool(closed["shadow"]) if closed else setting(conn, "shadow_mode") == "1",
         "people": people,
         "lines": lines,
         "defects": defects,
         "defects_by_section": by_section,
+        "defect_matrix": matrix,
     }
