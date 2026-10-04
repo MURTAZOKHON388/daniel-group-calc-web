@@ -1,0 +1,25 @@
+<noscript><div style="margin:16px;padding:14px 16px;border:1px solid #b3261e;border-radius:10px;background:#fbe4e1;color:#1c1c1a;font:17px/1.45 system-ui,sans-serif">
+  Этот просмотрщик не запускает страницу. Откройте файл в браузере — Chrome или Safari
+  («Открыть с помощью…» → Chrome).</div></noscript>
+<div class="demo-bar" id="demoBar">
+  <span class="demo-tag">Демо</span>
+  <span class="demo-note">примерные данные, без сервера</span>
+  <span class="demo-sp"></span>
+  <button type="button" class="demo-btn primary" id="demoScan">Тест-сканер</button>
+  <button type="button" class="demo-btn" id="demoReset">Сначала</button>
+</div>
+<div class="sheet" id="demoSheet" hidden role="dialog" aria-modal="true" aria-labelledby="demoTitle">
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2 id="demoTitle">Тест-сканер</h2>
+      <button type="button" class="ghost-btn" id="demoClose">✕ Закрыть</button>
+    </div>
+    <p class="demo-help">На планшете в цеху код читает сканер или камера (кнопка «📷 Камера» внизу). Здесь — нажмите код, это то же самое.</p>
+    <h3 class="side-h">Бейджи</h3>
+    <div class="demo-codes" id="demoBadges"></div>
+    <h3 class="side-h">Титульники заказов</h3>
+    <div class="demo-codes" id="demoDeals"></div>
+    <h3 class="side-h">Сканер на русской раскладке</h3>
+    <div class="demo-codes"><button type="button" class="demo-code" data-code="ВП-1204"><b>ВП-1204</b><span>сервер поймёт как DG-1204</span></button></div>
+  </div>
+</div>

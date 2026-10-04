@@ -321,8 +321,21 @@ def open_defect(conn: sqlite3.Connection, deal_id: int, section_id: int):
     ).fetchone()
 
 
-def start_session(conn: sqlite3.Connection, section_id: int, deal_id: int, worker_ids: list[int]) -> dict:
-    """«Начал». Если на участке по заказу уже идёт работа — рабочие присоединяются к ней."""
+def in_queue(section: sqlite3.Row, deal: sqlite3.Row) -> bool:
+    """Заказ в очереди участка — стоит на его стадии. Участок без стадии принимает любой заказ."""
+    return not section["stage_id"] or (deal["stage_id"] == section["stage_id"] and not deal["gone"])
+
+
+def deal_where(conn: sqlite3.Connection, deal: sqlite3.Row) -> str:
+    if deal["gone"]:
+        return "закрыт или ушёл из производства"
+    return f"на этапе «{stage_name(conn, deal['stage_id']) or 'без этапа'}»"
+
+
+def start_session(conn: sqlite3.Connection, section_id: int, deal_id: int, worker_ids: list[int],
+                  approved_by: int | None = None) -> dict:
+    """«Начал». Если на участке по заказу уже идёт работа — рабочие присоединяются к ней.
+    Заказ не из очереди участка начинают только с бейджем начальника производства (approved_by)."""
     if not worker_ids:
         raise ShopError("Сначала пикните бейдж")
     with tx(conn):
@@ -334,11 +347,21 @@ def start_session(conn: sqlite3.Connection, section_id: int, deal_id: int, worke
                 raise ShopError("Бейдж не найден или сотрудник отключён")
         s = open_session(conn, deal_id, section_id)
         joined = bool(s)
+        master = None
         if not s:
+            if not in_queue(section, deal):
+                master = conn.execute(
+                    "SELECT * FROM workers WHERE id = ? AND active = 1 AND is_master = 1", (approved_by,)
+                ).fetchone() if approved_by else None
+                if not master:
+                    raise ShopError(f"Заказ {deal['number']} {deal_where(conn, deal)}, а не в очереди участка. "
+                                    "Начать без очереди можно только с бейджем начальника производства.")
+                timeline(conn, deal_id, f"{section['name']}: начали без очереди, заказ был {deal_where(conn, deal)}. "
+                                        f"Разрешил: {master['name']}.")
             defect = open_defect(conn, deal_id, section_id)
             cur = conn.execute(
-                "INSERT INTO sessions(deal_id, section_id, started_at, defect_id) VALUES(?, ?, ?, ?)",
-                (deal_id, section_id, now_s(), defect["id"] if defect else None),
+                "INSERT INTO sessions(deal_id, section_id, started_at, defect_id, approved_by) VALUES(?, ?, ?, ?, ?)",
+                (deal_id, section_id, now_s(), defect["id"] if defect else None, master["id"] if master else None),
             )
             s = conn.execute("SELECT * FROM sessions WHERE id = ?", (cur.lastrowid,)).fetchone()
         for wid in worker_ids:
@@ -352,6 +375,7 @@ def start_session(conn: sqlite3.Connection, section_id: int, deal_id: int, worke
         "workers": names,
         "deal": deal["number"],
         "section": section["name"],
+        "approved_by": master["name"] if master else "",
     }
 
 

@@ -274,6 +274,7 @@ function personRow(w) {
     <td class="w-badge"><input data-f="badge" class="mono" value="${esc(w ? w.badge : "")}" placeholder="${esc(S.next_badge)}"></td>
     <td class="w-num"><input data-f="salary" inputmode="decimal" value="${w ? esc(w.salary) : ""}" placeholder="0"></td>
     <td><input type="checkbox" data-f="active" ${!w || w.active ? "checked" : ""} aria-label="Работает"></td>
+    <td><input type="checkbox" data-f="is_master" ${w && w.is_master ? "checked" : ""} aria-label="Начальник производства"></td>
     <td><button class="small ${w ? "" : "primary"}" onclick="savePerson(this)">${w ? "Сохранить" : "Добавить"}</button>
         ${w ? `<a class="btn small" target="_blank" href="/print?badges=${w.id}">Бейдж</a>` : ""}</td>
   </tr>`;
@@ -281,9 +282,10 @@ function personRow(w) {
 function viewPeople() {
   return `<div class="card">
     <p class="hint">Код бейджа печатается штрихкодом и QR на карточке, её ламинируют. Уволенного не удаляйте —
-      снимите галочку «работает»: его строки в отчётах сохранятся. Оклад нужен для схемы «оклад + сделка».</p>
+      снимите галочку «работает»: его строки в отчётах сохранятся. Оклад нужен для схемы «оклад + сделка».
+      «Начальник» — его бейдж на терминале разрешает начать заказ, который ещё не дошёл до участка (без очереди).</p>
     <div class="table-wrap"><table>
-      <tr><th>Имя</th><th>Бейдж</th><th>Оклад, ₽</th><th>Работает</th><th></th></tr>
+      <tr><th>Имя</th><th>Бейдж</th><th>Оклад, ₽</th><th>Работает</th><th>Начальник</th><th></th></tr>
       ${S.workers.map(personRow).join("")}
       ${personRow(null)}
     </table></div>

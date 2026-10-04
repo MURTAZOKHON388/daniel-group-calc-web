@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS workers (
   name    TEXT NOT NULL,
   badge   TEXT NOT NULL UNIQUE,          -- код на бейдже, его отдаёт сканер
   salary  REAL NOT NULL DEFAULT 0,       -- оклад за месяц, ₽
-  active  INTEGER NOT NULL DEFAULT 1
+  active  INTEGER NOT NULL DEFAULT 1,
+  is_master INTEGER NOT NULL DEFAULT 0   -- начальник производства: разрешает начать заказ без очереди
 );
 
 -- Участки в порядке прохождения заказа. stage_id — стадия сделки в Битриксе,
@@ -93,7 +94,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   result       TEXT,            -- done | remark | problem | cancelled | defect (ОТК нашёл брак)
   reason       TEXT NOT NULL DEFAULT '',
   comment      TEXT NOT NULL DEFAULT '',
-  defect_id    INTEGER          -- переделка по этому браку
+  defect_id    INTEGER,         -- переделка по этому браку
+  approved_by  INTEGER          -- кто разрешил начать без очереди (workers.id начальника)
 );
 CREATE INDEX IF NOT EXISTS sessions_deal ON sessions(deal_id, section_id);
 
@@ -187,16 +189,19 @@ def connect(path: str | Path = DEFAULT_DB) -> sqlite3.Connection:
     return conn
 
 
+# Колонки, появившиеся после первых установок: в старой базе их добавляем на месте.
+MIGRATIONS = [
+    ("workers", "is_master", "INTEGER NOT NULL DEFAULT 0"),
+    ("sessions", "approved_by", "INTEGER"),
+    ("months", "shadow", "INTEGER NOT NULL DEFAULT 0"),
+]
+
+
 def init(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
-    # База в цеху создана раньше новых колонок, а CREATE TABLE IF NOT EXISTS
-    # их в готовую таблицу не добавит — дописываем сами.
-    _add_column(conn, "months", "shadow", "INTEGER NOT NULL DEFAULT 0")
-
-
-def _add_column(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
-    if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+    for table, column, decl in MIGRATIONS:
+        if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 @contextmanager
