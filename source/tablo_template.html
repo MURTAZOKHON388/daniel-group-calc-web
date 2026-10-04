@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DANIEL GROUP — табло цеха</title>
+<style>
+  :root {
+    --bg: #f6f5f3;
+    --surface: #ffffff;
+    --surface-2: #faf9f7;
+    --text: #1c1c1a;
+    --text-dim: #6b6a66;
+    --border: #e0ddd7;
+    --accent: #8a6a3d;
+    --accent-soft: #f3ece1;
+    --ok: #3f7d54;
+    --late-bg: #fbe4e1;
+    --late-border: #d9534a;
+    --late-text: #8f1d14;
+    --soon-bg: #fdf1cf;
+    --soon-border: #e0a92a;
+    --soon-text: #7a5300;
+    --warn-bg: #fdf6e8;
+    --warn-border: #e6d3a3;
+    --err: #b3261e;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17171a;
+      --surface: #202024;
+      --surface-2: #26262b;
+      --text: #ececea;
+      --text-dim: #9b9a96;
+      --border: #35353b;
+      --accent: #c9a06a;
+      --accent-soft: #2e2820;
+      --ok: #6fb387;
+      --late-bg: #3d1d1b;
+      --late-border: #e0645b;
+      --late-text: #ffb4ad;
+      --soon-bg: #3a3017;
+      --soon-border: #d9a632;
+      --soon-text: #f4d27a;
+      --warn-bg: #2c2618;
+      --warn-border: #4d4128;
+      --err: #f2b8b5;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17171a;
+    --surface: #202024;
+    --surface-2: #26262b;
+    --text: #ececea;
+    --text-dim: #9b9a96;
+    --border: #35353b;
+    --accent: #c9a06a;
+    --accent-soft: #2e2820;
+    --ok: #6fb387;
+    --late-bg: #3d1d1b;
+    --late-border: #e0645b;
+    --late-text: #ffb4ad;
+    --soon-bg: #3a3017;
+    --soon-border: #d9a632;
+    --soon-text: #f4d27a;
+    --warn-bg: #2c2618;
+    --warn-border: #4d4128;
+    --err: #f2b8b5;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+    /* Табло смотрят с 3–5 метров: шрифт растёт вместе с экраном. */
+    font-size: clamp(14px, 1.05vw, 30px);
+    line-height: 1.35;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  header.bar {
+    display: flex; align-items: center; gap: 1.1em;
+    padding: .7em 1.2em; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex: none;
+  }
+  header.bar img { height: 2.3em; width: auto; background: #fff; border-radius: 6px; padding: 2px 6px; }
+  header.bar .brand { font-weight: 700; letter-spacing: .06em; }
+  header.bar .sub { color: var(--text-dim); font-size: .8em; }
+  header.bar .spacer { flex: 1 1 auto; }
+  .stat { display: flex; align-items: baseline; gap: .35em; font-size: .95em; white-space: nowrap; }
+  .stat b { font-size: 1.35em; }
+  .stat.late b { color: var(--late-border); }
+  .stat.soon b { color: var(--soon-border); }
+  .clock { font-size: 1.9em; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .updated { color: var(--text-dim); font-size: .78em; text-align: right; line-height: 1.25; white-space: nowrap; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    border-radius: 8px; padding: .55em 1em; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.icon { padding: .35em .6em; font-size: 1.1em; line-height: 1; background: transparent; }
+
+  .banner {
+    flex: none; padding: .5em 1.2em; font-weight: 600;
+    background: var(--warn-bg); border-bottom: 1px solid var(--warn-border);
+  }
+
+  .board {
+    flex: 1 1 auto; min-height: 0;
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+    gap: .8em; padding: .8em;
+  }
+  .col {
+    display: flex; flex-direction: column; min-height: 0; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .col-head {
+    display: flex; align-items: baseline; gap: .5em; flex: none;
+    padding: .6em .8em .5em; border-bottom: 3px solid var(--stage-color, var(--border));
+  }
+  .col-head .name { font-weight: 700; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-head .cnt { color: var(--text-dim); font-weight: 700; }
+  .col-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: .55em; display: flex; flex-direction: column; gap: .5em; }
+  .more { flex: none; text-align: center; color: var(--text-dim); font-weight: 600; padding: .35em; border-top: 1px dashed var(--border); }
+  .empty-col { color: var(--text-dim); text-align: center; padding: 1em 0; font-size: .9em; }
+
+  .deal {
+    flex: none; border: 1px solid var(--border); border-left-width: .35em;
+    border-radius: 8px; padding: .45em .6em; background: var(--surface-2);
+  }
+  .deal.late { background: var(--late-bg); border-color: var(--late-border); }
+  .deal.soon { background: var(--soon-bg); border-color: var(--soon-border); }
+  /* Номер важнее даты: он не сжимается, а длинная дата уходит на вторую строку. */
+  .deal .top { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5em; }
+  .deal .num { font-weight: 700; font-size: 1.12em; flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .deal .date { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; margin-left: auto; }
+  .deal.late .date { color: var(--late-text); }
+  .deal.soon .date { color: var(--soon-text); }
+  .deal .client, .deal .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .deal .title { color: var(--text-dim); font-size: .85em; }
+  .deal .tags { display: flex; flex-wrap: wrap; gap: .3em; margin-top: .25em; }
+  .tag { font-size: .78em; font-weight: 600; padding: .05em .5em; border-radius: 100px; border: 1px solid var(--border); background: var(--surface); }
+  .tag.work { border-color: var(--ok); color: var(--ok); }
+  .tag.problem { border-color: var(--late-border); color: var(--late-text); }
+  .tag.rework { border-color: var(--soon-border); color: var(--soon-text); }
+
+  .center-msg {
+    grid-column: 1 / -1; align-self: center; justify-self: center; text-align: center;
+    max-width: 34em; color: var(--text-dim);
+  }
+  .center-msg h2 { color: var(--text); margin: 0 0 .4em; }
+
+  /* ---------- настройки ---------- */
+  .modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 4vh 16px; overflow: auto; z-index: 10;
+    font-size: 15px;
+  }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; max-width: 620px; width: 100%;
+  }
+  .modal-box h3 { margin: 0 0 6px; font-size: 18px; }
+  .hint { color: var(--text-dim); font-size: 13.5px; margin: 0 0 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .field label { font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .row { display: flex; gap: 8px; }
+  .row > :first-child { flex: 1 1 auto; min-width: 0; }
+  input, select {
+    font: inherit; font-size: 14px; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 7px; padding: 9px 11px; width: 100%;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .stage-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 12px; }
+  .checkline { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 3px 0; }
+  .checkline input { width: auto; }
+  .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; justify-content: flex-end; }
+  .modal-actions .spacer { flex: 1 1 auto; }
+  .msg { font-size: 13px; margin-top: 6px; min-height: 1.2em; }
+  .msg.err { color: var(--err); }
+  .msg.ok { color: var(--ok); }
+
+  @media (max-width: 900px) {
+    body { overflow: auto; font-size: 15px; }
+    .board { grid-auto-flow: row; grid-auto-columns: auto; }
+    .col-body { overflow: visible; }
+    header.bar { flex-wrap: wrap; gap: .6em 1em; padding: .6em 16px; }
+    .board { padding: .8em 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="bar">
+  <img src="__LOGO_DATA_URI__" alt="DANIEL GROUP">
+  <div>
+    <div class="brand">DANIEL GROUP</div>
+    <div class="sub">Табло цеха · по дате отгрузки</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="stat late" title="Отгрузка сегодня или просрочена"><b id="statLate">0</b> сегодня и просрочено</div>
+  <div class="stat soon" title="Отгрузка завтра"><b id="statSoon">0</b> завтра</div>
+  <div class="stat"><b id="statAll">0</b> заказов</div>
+  <div class="clock" id="clock">--:--</div>
+  <div class="updated" id="updated"></div>
+  <button class="icon" id="setupBtn" title="Настройки" aria-label="Настройки">⚙</button>
+</header>
+<div class="banner" id="banner" hidden></div>
+<main class="board" id="board"></main>
+
+<div class="modal" id="setup" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+    <h3 id="setupTitle">Настройки табло</h3>
+    <div id="setupDirect">
+      <p class="hint">Табло только читает сделки из Битрикс24. Нужен входящий вебхук с правами
+        на CRM. Ключ хранится только в этом браузере и никуда не отправляется, кроме вашего Битрикса.
+        Не пересылайте его.</p>
+      <div class="field">
+        <label for="cfgWebhook">Адрес входящего вебхука</label>
+        <div class="row">
+          <input id="cfgWebhook" type="password" autocomplete="off" spellcheck="false"
+                 placeholder="https://ваш-портал.bitrix24.ru/rest/1/xxxxxxxxxxxx/">
+          <button type="button" id="cfgShow" title="Показать или скрыть">👁</button>
+          <button type="button" id="cfgCheck">Проверить</button>
+        </div>
+        <div class="msg" id="cfgMsg"></div>
+      </div>
+      <div class="field">
+        <label for="cfgCategory">Воронка</label>
+        <select id="cfgCategory" disabled></select>
+      </div>
+      <div class="field">
+        <label for="cfgShipField">Поле с датой отгрузки</label>
+        <select id="cfgShipField" disabled></select>
+      </div>
+      <div class="field">
+        <label>Колонки (стадии)</label>
+        <div class="stage-list" id="cfgStages"><span class="hint">Сначала нажмите «Проверить».</span></div>
+      </div>
+      <div class="field">
+        <label for="cfgNumberTpl">Номер на карточке</label>
+        <input id="cfgNumberTpl" placeholder="DG-{ID}">
+        <span class="hint" style="margin:0">{ID} — номер сделки, {TITLE} — название, можно код поля: {UF_CRM_…}</span>
+      </div>
+    </div>
+    <p class="hint" id="setupServer" hidden>Подключение к Битриксу, воронка и стадии настраиваются на
+      цеховом сервере, в разделе «Справочники».</p>
+    <div class="field">
+      <label for="cfgTheme">Тема</label>
+      <select id="cfgTheme">
+        <option value="auto">Как в системе</option>
+        <option value="dark">Тёмная</option>
+        <option value="light">Светлая</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button type="button" id="cfgDemo">Демо-данные</button>
+      <div class="spacer"></div>
+      <button type="button" id="cfgCancel">Отмена</button>
+      <button type="button" class="primary" id="cfgSave">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Табло цеха: колонки — стадии сделки, карточки — по дате отгрузки.
+   Источник данных:
+   - SERVER_API задан (страницу отдаёт цеховой сервер) — читаем его, вебхук на ТВ не нужен;
+   - иначе ходим в REST Битрикс24 напрямую по вебхуку из localStorage;
+   - ?demo — фейковые сделки, чтобы посмотреть вид без Битрикса.
+   Формат данных у всех трёх один: { stages: [{id,name,color}], deals: [...] }. */
+const SERVER_API = /*__SERVER_API__*/"";
+const PARAMS = new URLSearchParams(location.search);
+const LS_CFG = "dg_tablo_cfg_v1";
+const LS_CACHE = "dg_tablo_cache_v1";
+const REFRESH_MS = 60 * 1000;
+const DEFAULT_CFG = { webhook: "", categoryId: "0", shipField: "", stages: null, numberTpl: "DG-{ID}", theme: "auto", demo: false };
+
+const st = {
+  cfg: loadCfg(),
+  data: null,          // последние успешно загруженные данные
+  okAt: null,          // когда последний раз загрузили без ошибки
+  error: null,
+  loading: false,
+  meta: null,          // справочники для окна настроек: воронки, поля, стадии
+};
+
+/* ================= УТИЛИТЫ ================= */
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function pad(n) { return String(n).padStart(2, "0"); }
+function ymd(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function hhmm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function lsSet(key, val) { try { localStorage.setItem(key, val); } catch (e) { /* приватный режим — живём без памяти */ } }
+
+function loadCfg() {
+  let saved = {};
+  try { saved = JSON.parse(lsGet(LS_CFG) || "{}") || {}; } catch (e) { saved = {}; }
+  const cfg = Object.assign({}, DEFAULT_CFG, saved);
+  if (PARAMS.has("demo")) cfg.demo = true;
+  return cfg;
+}
+function saveCfg() { lsSet(LS_CFG, JSON.stringify(st.cfg)); }
+
+function applyTheme() {
+  const t = PARAMS.get("theme") || st.cfg.theme;
+  if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+}
+
+/* Дата из Битрикса приходит как "2026-10-02T03:00:00+03:00" (в поясе портала),
+   иногда как "02.10.2026". Берём календарную дату как есть, без перевода в пояс ТВ. */
+function parseDate(v) {
+  if (!v) return null;
+  const s = String(v);
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (m) return m[3] + "-" + m[2] + "-" + m[1];
+  return null;
+}
+
+/* Красный — отгрузка сегодня или уже просрочена, жёлтый — завтра. */
+function urgency(shipDate, today, tomorrow) {
+  if (!shipDate) return "";
+  if (shipDate <= today) return "late";
+  if (shipDate === tomorrow) return "soon";
+  return "";
+}
+
+const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+function dateLabel(shipDate, today, tomorrow) {
+  if (!shipDate) return "без даты";
+  if (shipDate === today) return "сегодня";
+  if (shipDate === tomorrow) return "завтра";
+  const d = new Date(shipDate + "T00:00:00");
+  if (shipDate < today) {
+    const days = Math.round((new Date(today + "T00:00:00") - d) / 86400000);
+    return "просрочено " + days + " дн.";
+  }
+  return WD[d.getDay()] + " " + pad(d.getDate()) + "." + pad(d.getMonth() + 1);
+}
+
+/* ================= БИТРИКС24 НАПРЯМУЮ ================= */
+/* Пользователь может вставить вебхук целиком с методом на конце
+   (…/rest/1/abc/profile.json) — оставляем только …/rest/<user>/<ключ>/. */
+function normalizeWebhook(url) {
+  const s = String(url || "").trim();
+  const m = s.match(/^(https?:\/\/[^/]+\/rest\/\d+\/[^/?#]+)/i);
+  return m ? m[1] + "/" : "";
+}
+
+async function b24(method, params) {
+  const base = normalizeWebhook(st.cfg.webhook);
+  if (!base) throw new Error("Не указан адрес вебхука");
+  let r;
+  try {
+    r = await fetch(base + method + ".json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params || {}),
+    });
+  } catch (e) {
+    throw new Error("Нет связи с Битриксом");
+  }
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (!r.ok || !j || j.error) {
+    const why = j && (j.error_description || j.error);
+    throw new Error("Битрикс: " + (why || "HTTP " + r.status));
+  }
+  return j;
+}
+
+/* Списочные методы отдают по 50 записей, дальше — через start. */
+async function b24all(method, params, pick) {
+  const out = [];
+  let start = 0;
+  for (let guard = 0; guard < 100; guard++) {
+    const j = await b24(method, Object.assign({}, params, { start }));
+    const rows = pick ? pick(j.result) : j.result;
+    out.push(...(rows || []));
+    if (j.next == null) break;
+    start = j.next;
+  }
+  return out;
+}
+
+function stageEntityId(categoryId) {
+  return String(categoryId) === "0" ? "DEAL_STAGE" : "DEAL_STAGE_" + categoryId;
+}
+
+async function loadStages(categoryId) {
+  const rows = await b24all("crm.status.list", {
+    order: { SORT: "ASC" },
+    filter: { ENTITY_ID: stageEntityId(categoryId) },
+  });
+  return rows.map((r) => ({
+    id: r.STATUS_ID,
+    name: r.NAME,
+    color: (r.EXTRA && r.EXTRA.COLOR) || r.COLOR || "",
+    semantics: (r.EXTRA && r.EXTRA.SEMANTICS) || r.SEMANTICS || "",
+  }));
+}
+
+/* Справочники для окна настроек: воронки, поля типа «дата», стадии. */
+async function loadMeta() {
+  const [cats, fields] = await Promise.all([
+    b24all("crm.category.list", { entityTypeId: 2 }, (res) => res && res.categories),
+    b24("crm.deal.fields", {}).then((j) => j.result),
+  ]);
+  const categories = cats.map((c) => ({ id: String(c.id), name: c.name }));
+  if (!categories.some((c) => c.id === "0")) categories.unshift({ id: "0", name: "Общая" });
+  const dateFields = Object.entries(fields)
+    .filter(([, f]) => f.type === "date" || f.type === "datetime")
+    .map(([code, f]) => ({ code, label: f.formLabel || f.listLabel || f.title || code }));
+  return { categories, dateFields };
+}
+
+function numberFromTpl(tpl, deal) {
+  return String(tpl || "DG-{ID}").replace(/\{([A-Z0-9_]+)\}/g, (_, k) => (deal[k] == null ? "" : deal[k]));
+}
+function tplFields(tpl) {
+  return [...String(tpl || "").matchAll(/\{([A-Z0-9_]+)\}/g)].map((m) => m[1]);
+}
+
+async function loadClients(deals) {
+  const contactIds = [...new Set(deals.map((d) => d.CONTACT_ID).filter((x) => x && x !== "0"))];
+  const companyIds = [...new Set(deals.map((d) => d.COMPANY_ID).filter((x) => x && x !== "0"))];
+  const names = { contact: {}, company: {} };
+  const chunks = (arr) => { const out = []; for (let i = 0; i < arr.length; i += 50) out.push(arr.slice(i, i + 50)); return out; };
+  for (const ids of chunks(contactIds)) {
+    const j = await b24("crm.contact.list", { filter: { ID: ids }, select: ["ID", "NAME", "LAST_NAME"] });
+    for (const c of j.result || []) names.contact[c.ID] = [c.LAST_NAME, c.NAME].filter(Boolean).join(" ");
+  }
+  for (const ids of chunks(companyIds)) {
+    const j = await b24("crm.company.list", { filter: { ID: ids }, select: ["ID", "TITLE"] });
+    for (const c of j.result || []) names.company[c.ID] = c.TITLE;
+  }
+  return names;
+}
+
+async function loadDirect() {
+  const cfg = st.cfg;
+  const select = ["ID", "TITLE", "STAGE_ID", "CONTACT_ID", "COMPANY_ID"];
+  if (cfg.shipField) select.push(cfg.shipField);
+  for (const f of tplFields(cfg.numberTpl)) if (!select.includes(f)) select.push(f);
+  const [allStages, rawDeals] = await Promise.all([
+    loadStages(cfg.categoryId),
+    b24all("crm.deal.list", {
+      order: { ID: "ASC" },
+      filter: { CATEGORY_ID: cfg.categoryId, CLOSED: "N" },
+      select,
+    }),
+  ]);
+  const names = await loadClients(rawDeals);
+  // По умолчанию — все рабочие стадии; успешные/провальные закрывают сделку и не нужны.
+  const wanted = cfg.stages && cfg.stages.length
+    ? allStages.filter((s) => cfg.stages.includes(s.id))
+    : allStages.filter((s) => s.semantics !== "S" && s.semantics !== "F" && s.semantics !== "success" && s.semantics !== "failure");
+  const deals = rawDeals.map((d) => ({
+    id: d.ID,
+    number: numberFromTpl(cfg.numberTpl, d),
+    title: d.TITLE || "",
+    client: names.company[d.COMPANY_ID] || names.contact[d.CONTACT_ID] || "",
+    shipDate: parseDate(cfg.shipField ? d[cfg.shipField] : null),
+    stageId: d.STAGE_ID,
+  }));
+  return { stages: wanted.map(({ id, name, color }) => ({ id, name, color })), deals };
+}
+
+/* ================= ЦЕХОВОЙ СЕРВЕР ================= */
+async function loadServer() {
+  let r;
+  try { r = await fetch(SERVER_API, { cache: "no-store" }); } catch (e) { throw new Error("Нет связи с сервером цеха"); }
+  if (!r.ok) throw new Error("Сервер цеха: HTTP " + r.status);
+  return r.json();
+}
+
+/* ================= ДЕМО ================= */
+function demoData() {
+  const stages = [
+    { id: "D_CUT", name: "Распил", color: "#5b8def" },
+    { id: "D_EDGE", name: "Кромка", color: "#9b6bd6" },
+    { id: "D_DRILL", name: "Присадка", color: "#e08a3c" },
+    { id: "D_PACK", name: "Упаковка", color: "#3fa58f" },
+    { id: "D_OTK", name: "ОТК", color: "#c25c7a" },
+    { id: "D_READY", name: "Готов к отгрузке", color: "#6b9b3a" },
+  ];
+  const clients = ["Иванов И.", "ООО «Интерьер Плюс»", "Петрова А.", "Студия «Линия»", "Сидоров П.", "ИП Каримов",
+    "Мебель-Сити", "Абдуллаев Р.", "ООО «Кухни Юга»", "Смирнова Е.", "Дизайн-бюро «Форма»", "Ким В."];
+  const products = ["Кухня", "Шкаф-купе", "Гардероб", "Распил 12 листов", "Прихожая", "Детская", "Распил 4 листа", "Тумба ТВ"];
+  const now = new Date();
+  const deals = [];
+  for (let i = 0; i < 26; i++) {
+    const offset = [-2, -1, 0, 0, 1, 1, 2, 3, 4, 5, 6, 8, 10][i % 13];
+    const id = String(1180 + i * 3);
+    const work = i % 7 === 2 ? ["Солех"] : i % 9 === 4 ? ["Иван", "Рустам"] : [];
+    deals.push({
+      id,
+      number: "DG-" + id,
+      title: products[i % products.length],
+      client: clients[i % clients.length],
+      shipDate: i % 11 === 10 ? null : ymd(addDays(now, offset)),
+      stageId: stages[(i * 5) % stages.length].id,
+      working: work,
+      problem: i === 6,
+      rework: i === 15,
+    });
+  }
+  return { stages, deals };
+}
+
+/* ================= ЗАГРУЗКА ================= */
+function mode() {
+  if (st.cfg.demo) return "demo";
+  if (SERVER_API) return "server";
+  return normalizeWebhook(st.cfg.webhook) ? "direct" : "none";
+}
+
+async function refresh() {
+  if (st.loading) return;
+  const m = mode();
+  if (m === "none") { st.data = null; render(); return; }
+  st.loading = true;
+  try {
+    const data = m === "demo" ? demoData() : m === "server" ? await loadServer() : await loadDirect();
+    st.data = data;
+    st.okAt = new Date();
+    st.error = null;
+    if (m !== "demo") lsSet(LS_CACHE, JSON.stringify({ at: st.okAt.toISOString(), mode: m, data }));
+  } catch (e) {
+    st.error = e.message || String(e);
+    // После перезагрузки ТВ без интернета показываем то, что было в последний раз.
+    if (!st.data) {
+      try {
+        const c = JSON.parse(lsGet(LS_CACHE) || "null");
+        if (c && c.mode === m && c.data) { st.data = c.data; st.okAt = new Date(c.at); }
+      } catch (e2) { /* кэш битый — пропускаем */ }
+    }
+  } finally {
+    st.loading = false;
+  }
+  render();
+}
+
+/* ================= ОТРИСОВКА ================= */
+function sortDeals(a, b) {
+  // Без даты — в конец колонки, остальные по возрастанию даты, при равенстве — по номеру.
+  if (a.shipDate !== b.shipDate) {
+    if (!a.shipDate) return 1;
+    if (!b.shipDate) return -1;
+    return a.shipDate < b.shipDate ? -1 : 1;
+  }
+  return Number(a.id) - Number(b.id);
+}
+
+function dealHtml(d, today, tomorrow) {
+  const u = urgency(d.shipDate, today, tomorrow);
+  const tags = [];
+  if (d.working && d.working.length) tags.push(`<span class="tag work">в работе: ${esc(d.working.join(", "))}</span>`);
+  if (d.problem) tags.push(`<span class="tag problem">⚠ проблема</span>`);
+  if (d.rework) tags.push(`<span class="tag rework">переделка</span>`);
+  const showTitle = d.title && d.title !== d.client && d.title !== d.number;
+  return `<div class="deal ${u}">
+    <div class="top"><div class="num">${esc(d.number)}</div><div class="date">${esc(dateLabel(d.shipDate, today, tomorrow))}</div></div>
+    ${d.client ? `<div class="client">${esc(d.client)}</div>` : ""}
+    ${showTitle ? `<div class="title">${esc(d.title)}</div>` : ""}
+    ${tags.length ? `<div class="tags">${tags.join("")}</div>` : ""}
+  </div>`;
+}
+
+function render() {
+  const board = $("board");
+  const m = mode();
+  const now = new Date();
+  const today = ymd(now), tomorrow = ymd(addDays(now, 1));
+
+  if (m === "none") {
+    board.innerHTML = `<div class="center-msg"><h2>Табло не настроено</h2>
+      <p>Нажмите ⚙ вверху справа и вставьте адрес входящего вебхука Битрикс24 с правами на CRM.
+      Чтобы посмотреть, как это выглядит, — кнопка «Демо-данные» в настройках.</p></div>`;
+    setStats(0, 0, 0);
+    renderStatus();
+    return;
+  }
+  if (!st.data) {
+    board.innerHTML = `<div class="center-msg"><h2>${st.error ? "Не удалось загрузить сделки" : "Загрузка…"}</h2>
+      ${st.error ? `<p>${esc(st.error)}</p>` : ""}</div>`;
+    renderStatus();
+    return;
+  }
+
+  const { stages, deals } = st.data;
+  const stageIds = new Set(stages.map((s) => s.id));
+  const shown = deals.filter((d) => stageIds.has(d.stageId));
+  let late = 0, soon = 0;
+  for (const d of shown) {
+    const u = urgency(d.shipDate, today, tomorrow);
+    if (u === "late") late++;
+    if (u === "soon") soon++;
+  }
+  setStats(late, soon, shown.length);
+
+  board.innerHTML = stages.map((s) => {
+    const list = shown.filter((d) => d.stageId === s.id).sort(sortDeals);
+    return `<section class="col" style="--stage-color:${esc(s.color || "")}">
+      <div class="col-head"><div class="name" title="${esc(s.name)}">${esc(s.name)}</div><div class="cnt">${list.length}</div></div>
+      <div class="col-body">${list.length ? list.map((d) => dealHtml(d, today, tomorrow)).join("") : `<div class="empty-col">пусто</div>`}</div>
+      <div class="more" hidden></div>
+    </section>`;
+  }).join("") || `<div class="center-msg"><h2>Нет стадий для показа</h2><p>Выберите колонки в настройках.</p></div>`;
+
+  fitColumns();
+  renderStatus();
+}
+
+/* ТВ не прокручивают: если карточки не влезают, прячем нижние (самые поздние
+   по отгрузке) и пишем «ещё N». */
+function fitColumns() {
+  if (window.matchMedia("(max-width: 900px)").matches) return;
+  for (const col of document.querySelectorAll(".col")) {
+    const body = col.querySelector(".col-body");
+    const more = col.querySelector(".more");
+    const cards = [...body.querySelectorAll(".deal")];
+    let hidden = 0;
+    more.hidden = true;
+    for (let i = cards.length - 1; i >= 0 && body.scrollHeight > body.clientHeight + 1; i--) {
+      cards[i].hidden = true;
+      hidden++;
+      more.hidden = false;
+      more.textContent = "ещё " + hidden;
+    }
+  }
+}
+
+function setStats(late, soon, all) {
+  $("statLate").textContent = late;
+  $("statSoon").textContent = soon;
+  $("statAll").textContent = all;
+}
+
+function renderStatus() {
+  const m = mode();
+  const lines = [];
+  if (m === "demo") lines.push("демо-данные");
+  else if (st.okAt) lines.push("обновлено в " + hhmm(st.okAt));
+  if (m === "server") lines.push("сервер цеха");
+  else if (m === "direct") lines.push("Битрикс24");
+  $("updated").innerHTML = lines.map(esc).join("<br>");
+
+  const banner = $("banner");
+  if (st.error && st.data) {
+    banner.hidden = false;
+    banner.textContent = (st.okAt ? "Показаны данные на " + hhmm(st.okAt) + ". " : "") + st.error + ". Повтор каждую минуту.";
+  } else {
+    banner.hidden = true;
+  }
+}
+
+function tickClock() {
+  $("clock").textContent = hhmm(new Date());
+}
+
+/* ================= НАСТРОЙКИ ================= */
+function openSetup() {
+  const server = !!SERVER_API;
+  $("setupDirect").hidden = server;
+  $("setupServer").hidden = !server;
+  $("cfgWebhook").value = st.cfg.webhook || "";
+  $("cfgNumberTpl").value = st.cfg.numberTpl || "";
+  $("cfgTheme").value = st.cfg.theme || "auto";
+  $("cfgMsg").textContent = "";
+  $("cfgMsg").className = "msg";
+  $("cfgDemo").textContent = st.cfg.demo ? "Выключить демо" : "Демо-данные";
+  $("setup").hidden = false;
+  if (!server && normalizeWebhook(st.cfg.webhook)) checkWebhook();
+}
+function closeSetup() { $("setup").hidden = true; }
+
+async function checkWebhook() {
+  const msg = $("cfgMsg");
+  const url = normalizeWebhook($("cfgWebhook").value);
+  if (!url) { msg.className = "msg err"; msg.textContent = "Адрес должен быть вида https://портал/rest/1/ключ/"; return; }
+  const prev = st.cfg.webhook;
+  st.cfg.webhook = url;
+  msg.className = "msg"; msg.textContent = "Проверяю…";
+  try {
+    st.meta = await loadMeta();
+    msg.className = "msg ok"; msg.textContent = "Подключено. Выберите воронку и поле даты отгрузки.";
+    fillMeta();
+  } catch (e) {
+    st.cfg.webhook = prev;
+    msg.className = "msg err"; msg.textContent = e.message;
+  }
+}
+
+function fillMeta() {
+  const { categories, dateFields } = st.meta;
+  const catSel = $("cfgCategory");
+  catSel.innerHTML = categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  catSel.value = categories.some((c) => c.id === String(st.cfg.categoryId)) ? String(st.cfg.categoryId) : categories[0].id;
+  catSel.disabled = false;
+
+  const shipSel = $("cfgShipField");
+  shipSel.innerHTML = `<option value="">— не выбрано —</option>` +
+    dateFields.map((f) => `<option value="${esc(f.code)}">${esc(f.label)}</option>`).join("");
+  let ship = st.cfg.shipField;
+  if (!ship || !dateFields.some((f) => f.code === ship)) {
+    const guess = dateFields.find((f) => /отгруз/i.test(f.label));
+    ship = guess ? guess.code : "";
+  }
+  shipSel.value = ship;
+  shipSel.disabled = false;
+  fillStages();
+}
+
+async function fillStages() {
+  const box = $("cfgStages");
+  const catId = $("cfgCategory").value;
+  box.innerHTML = `<span class="hint">Загружаю стадии…</span>`;
+  try {
+    const stages = await loadStages(catId);
+    const sameCat = String(catId) === String(st.cfg.categoryId);
+    const chosen = sameCat && st.cfg.stages && st.cfg.stages.length ? st.cfg.stages : null;
+    box.innerHTML = stages.map((s) => {
+      const closed = ["S", "F", "success", "failure"].includes(s.semantics);
+      const on = chosen ? chosen.includes(s.id) : !closed;
+      return `<label class="checkline"><input type="checkbox" value="${esc(s.id)}" ${on ? "checked" : ""}> ${esc(s.name)}</label>`;
+    }).join("");
+  } catch (e) {
+    box.innerHTML = `<span class="msg err">${esc(e.message)}</span>`;
+  }
+}
+
+function saveSetup() {
+  st.cfg.theme = $("cfgTheme").value;
+  if (!SERVER_API) {
+    st.cfg.webhook = normalizeWebhook($("cfgWebhook").value) || st.cfg.webhook;
+    st.cfg.numberTpl = $("cfgNumberTpl").value.trim() || "DG-{ID}";
+    if (st.meta) {
+      st.cfg.categoryId = $("cfgCategory").value;
+      st.cfg.shipField = $("cfgShipField").value;
+      const boxes = [...$("cfgStages").querySelectorAll("input[type=checkbox]")];
+      if (boxes.length) st.cfg.stages = boxes.filter((b) => b.checked).map((b) => b.value);
+    }
+    if (normalizeWebhook(st.cfg.webhook)) st.cfg.demo = false;
+  }
+  saveCfg();
+  applyTheme();
+  closeSetup();
+  st.data = null;
+  st.error = null;
+  render();
+  refresh();
+}
+
+function toggleDemo() {
+  st.cfg.demo = !st.cfg.demo;
+  saveCfg();
+  closeSetup();
+  st.data = null;
+  render();
+  refresh();
+}
+
+/* ================= СТАРТ ================= */
+$("setupBtn").addEventListener("click", openSetup);
+$("cfgCancel").addEventListener("click", closeSetup);
+$("cfgSave").addEventListener("click", saveSetup);
+$("cfgCheck").addEventListener("click", checkWebhook);
+$("cfgDemo").addEventListener("click", toggleDemo);
+$("cfgCategory").addEventListener("change", fillStages);
+$("cfgShow").addEventListener("click", () => {
+  const i = $("cfgWebhook");
+  i.type = i.type === "password" ? "text" : "password";
+});
+$("setup").addEventListener("click", (e) => { if (e.target === $("setup")) closeSetup(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSetup(); });
+window.addEventListener("resize", () => { if (st.data) render(); });
+
+// Экран ТВ не должен гаснуть — где браузер умеет, просим не засыпать.
+async function keepAwake() {
+  try { if (navigator.wakeLock) await navigator.wakeLock.request("screen"); } catch (e) { /* не поддерживается */ }
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") keepAwake(); });
+
+applyTheme();
+tickClock();
+setInterval(tickClock, 5000);
+render();
+refresh();
+setInterval(refresh, REFRESH_MS);
+// В полночь «завтра» становится «сегодня» — перекрашиваем без ожидания загрузки.
+setInterval(() => { if (st.data) render(); }, 10 * 60 * 1000);
+keepAwake();
+if (PARAMS.has("setup")) openSetup();
+</script>
+</body>
+</html>

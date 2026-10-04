@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Печать — DANIEL GROUP</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  /* Печатные листы всегда чёрным по белому, независимо от темы экрана. */
+  .sheet { background: #fff; color: #111; margin: 0 auto 16px; box-shadow: 0 1px 6px rgba(0,0,0,.15); }
+  .toolbar { max-width: 210mm; margin: 16px auto; padding: 0 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar .spacer { flex: 1 1 auto; }
+  svg { display: block; }
+
+  /* Бейджи 85×55 мм, 10 на листе А4. */
+  .badges { width: 210mm; padding: 10mm 20mm; display: grid; grid-template-columns: repeat(2, 85mm); grid-auto-rows: 55mm; }
+  .badge { border: 1px dashed #bbb; padding: 4mm 5mm; display: grid; grid-template-columns: 1fr 25mm; grid-template-rows: auto 1fr auto; gap: 1mm 3mm; overflow: hidden; }
+  .badge .logo { height: 6mm; justify-self: start; }
+  .badge .name { grid-column: 1; font-size: 15pt; font-weight: 700; line-height: 1.1; align-self: center; }
+  .badge .qr { grid-column: 2; grid-row: 1 / 3; width: 25mm; height: 25mm; }
+  .badge .bar { grid-column: 1 / 3; height: 12mm; }
+  .badge .bar svg { width: 100%; height: 12mm; }
+  .badge .code { grid-column: 1 / 3; font: 9pt var(--mono); text-align: center; color: #333; margin-top: -1mm; }
+
+  /* Титульник А4. */
+  .title-page { width: 210mm; min-height: 297mm; padding: 18mm; display: flex; flex-direction: column; gap: 8mm; page-break-after: always; break-after: page; }
+  .title-page .logo { height: 12mm; align-self: flex-start; }
+  .title-page .num { font-size: 52pt; font-weight: 800; letter-spacing: .02em; line-height: 1; }
+  .title-page .client { font-size: 22pt; font-weight: 600; }
+  .title-page .what { font-size: 16pt; color: #444; }
+  .title-page .ship { font-size: 18pt; }
+  .title-page .codes { display: flex; gap: 12mm; align-items: center; margin-top: auto; }
+  .title-page .qr { width: 70mm; height: 70mm; flex: none; }
+  .title-page .bar svg { width: 90mm; height: 24mm; }
+  .title-page .bar .code { font: 12pt var(--mono); text-align: center; margin-top: 2mm; }
+  .title-page .howto { font-size: 11pt; color: #555; border-top: 1px solid #ccc; padding-top: 4mm; }
+
+  /* Наклейки 58×40 мм, 3×7 на листе А4. */
+  .labels { width: 210mm; padding: 8mm 18mm; display: grid; grid-template-columns: repeat(3, 58mm); grid-auto-rows: 40mm; }
+  .label { border: 1px dashed #bbb; padding: 2.5mm 3mm; display: grid; grid-template-columns: 22mm 1fr; gap: 0 3mm; overflow: hidden; }
+  .label .qr { width: 22mm; height: 22mm; grid-row: 1 / 3; }
+  .label .num { font-size: 13pt; font-weight: 800; line-height: 1.1; }
+  .label .client { font-size: 8pt; line-height: 1.2; max-height: 3.6em; overflow: hidden; }
+  .label .bar { grid-column: 1 / 3; align-self: end; }
+  .label .bar svg { width: 100%; height: 9mm; }
+
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .sheet { box-shadow: none; margin: 0; }
+    @page { size: A4; margin: 0; }
+  }
+  @media screen and (max-width: 840px) {
+    .sheet { transform-origin: top left; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <b id="what">Печать</b>
+  <div class="spacer"></div>
+  <a class="btn" href="/admin">← Справочники</a>
+  <button class="primary" onclick="window.print()">Печать</button>
+</div>
+<div id="out"></div>
+<script src="/static/common.js"></script>
+<script src="/static/vendor/qrcode.js"></script>
+<script src="/static/vendor/JsBarcode.code128.min.js"></script>
+<script>
+/* /print?badges=all | ?badges=1,2 — бейджи; ?deals=1201,1204&format=a4|label — титульники или наклейки.
+   QR и Code128 несут один и тот же текст: что умеет сканер участка, то и прочитает. */
+const P = new URLSearchParams(location.search);
+
+function qrSvg(text) {
+  const qr = qrcode(0, "M");
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true, alt: text });
+}
+function barSvg(text) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  JsBarcode(svg, text, { format: "CODE128", displayValue: false, margin: 0, height: 60, width: 2 });
+  svg.setAttribute("preserveAspectRatio", "none");
+  return svg.outerHTML;
+}
+function shipText(d) {
+  if (!d) return "дата отгрузки не указана";
+  return "Отгрузка " + shortDate(d);
+}
+
+function badgesHtml(workers) {
+  return `<div class="sheet badges">${workers.map((w) => `<div class="badge">
+    <img class="logo" src="/static/logo.png" alt="">
+    <div class="qr">${qrSvg(w.badge)}</div>
+    <div class="name">${esc(w.name)}</div>
+    <div class="bar">${barSvg(w.badge)}</div>
+    <div class="code">${esc(w.badge)}</div>
+  </div>`).join("")}</div>`;
+}
+function titlesHtml(deals) {
+  return deals.map((d) => `<div class="sheet title-page">
+    <img class="logo" src="/static/logo.png" alt="DANIEL GROUP">
+    <div class="num">${esc(d.number)}</div>
+    <div class="client">${esc(d.client || "")}</div>
+    <div class="what">${esc(d.title || "")}</div>
+    <div class="ship">${esc(shipText(d.shipDate))}</div>
+    <div class="codes">
+      <div class="qr">${qrSvg(d.number)}</div>
+      <div class="bar">${barSvg(d.number)}<div class="code">${esc(d.number)}</div></div>
+    </div>
+    <div class="howto">На каждом участке: пикнуть бейдж, пикнуть этот лист, нажать «Начал». Закончили — пикнуть лист и выбрать результат.</div>
+  </div>`).join("");
+}
+function labelsHtml(deals) {
+  return `<div class="sheet labels">${deals.map((d) => `<div class="label">
+    <div class="qr">${qrSvg(d.number)}</div>
+    <div class="num">${esc(d.number)}</div>
+    <div class="client">${esc(d.client || d.title || "")}<br>${esc(d.shipDate ? "отгр. " + shortDate(d.shipDate) : "")}</div>
+    <div class="bar">${barSvg(d.number)}</div>
+  </div>`).join("")}</div>`;
+}
+
+async function main() {
+  const q = new URLSearchParams();
+  if (P.get("badges")) q.set("badges", P.get("badges"));
+  if (P.get("deals")) q.set("deals", P.get("deals"));
+  try {
+    const data = await api("/api/admin/print?" + q.toString());
+    if (P.get("badges")) {
+      $("what").textContent = `Бейджи: ${data.workers.length}`;
+      $("out").innerHTML = data.workers.length ? badgesHtml(data.workers) : `<p class="toolbar">Нет работающих сотрудников.</p>`;
+    } else if (P.get("deals")) {
+      const label = P.get("format") === "label";
+      $("what").textContent = (label ? "Наклейки" : "Титульники") + `: ${data.deals.length}`;
+      $("out").innerHTML = !data.deals.length ? `<p class="toolbar">Заказы не найдены.</p>` : label ? labelsHtml(data.deals) : titlesHtml(data.deals);
+    } else {
+      $("out").innerHTML = `<p class="toolbar">Откройте печать из справочников.</p>`;
+    }
+  } catch (e) {
+    $("out").innerHTML = `<div class="toolbar"><div class="note err">${esc(e.message)}</div></div>`;
+  }
+}
+main();
+</script>
+</body>
+</html>
